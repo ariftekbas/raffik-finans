@@ -191,7 +191,7 @@ col_logo, col_title = st.columns([1, 8])
 with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
-    st.title("Artek Finans: Pro")
+    st.title("Arse Finans")
     durum_ikonu = "🟢" if borsa_acik_mi else "🔴"
     st.caption(f"{durum_ikonu} Piyasa Durumu | ⚠️ Veriler BIST kuralları gereği 15dk gecikmelidir.")
 st.markdown("---")
@@ -380,6 +380,7 @@ with tab_bilgi:
             st.write(tik.info.get('longBusinessSummary', ''))
         else: st.info("Şirket verisi yok.")
     except: st.write("Bilgi alınamadı.")
+
 
 
 
