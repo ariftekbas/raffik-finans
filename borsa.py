@@ -13,7 +13,7 @@ except ImportError:
     st_autorefresh = None
 
 # --- 1. SİTE AYARLARI ---
-st.set_page_config(page_title="Raffık Finans BIST100", layout="wide", page_icon="🦅")
+st.set_page_config(page_title="Raffık Finans Pro", layout="wide", page_icon="🦅")
 
 if st_autorefresh:
     st_autorefresh(interval=60000, key="fiyat_yenileme")
@@ -38,6 +38,13 @@ st.markdown("""
     div.stButton > button { padding: 0px 5px; min-height: 30px; height: 30px; line-height: 1; border: 1px solid #4b5563; }
     div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] { align-items: center; border-bottom: 1px solid #374151; padding-bottom: 5px; margin-bottom: 5px; }
     .streamlit-expanderHeader { font-weight: bold; background-color: #1f2937; border-radius: 5px; }
+    
+    /* Arama Kutusu Stili */
+    div[data-testid="stTextInput"] > div > div > input {
+        background-color: #1f2937;
+        color: white;
+        border: 1px solid #4b5563;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -47,15 +54,12 @@ with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
     st.title("RAFFIK FİNANS: BIST 100 PRO")
-    st.caption(f"🔴 Tüm BIST 100 Hisseleri Eklendi | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
+    st.caption(f"🔴 Arama Özelliği Aktif | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
 st.markdown("---")
 
-# --- DEV HİSSE LİSTESİ (BIST 100 + EMTİALAR) ---
+# --- LİSTE ---
 HAM_LISTE = [
-    # EMTİA & DÖVİZ
     "GC=F", "SI=F", "USDTRY=X",
-    
-    # BIST 100 ve POPÜLER HİSSELER
     "AEFES.IS", "AGHOL.IS", "AHGAZ.IS", "AKBNK.IS", "AKCNS.IS", "AKFGY.IS", "AKFYE.IS", "AKSA.IS", "AKSEN.IS", "ALARK.IS", 
     "ALBRK.IS", "ALFAS.IS", "ARCLK.IS", "ASELS.IS", "ASTOR.IS", "ASUZU.IS", "AYDEM.IS", "BAGFS.IS", "BERA.IS", "BIMAS.IS", 
     "BIOEN.IS", "BRSAN.IS", "BRYAT.IS", "BUCIM.IS", "CANTE.IS", "CCOLA.IS", "CEMTS.IS", "CIMSA.IS", "CWENE.IS", "DOAS.IS", 
@@ -85,7 +89,6 @@ ISIM_SOZLUGU = {
 @st.cache_data(ttl=60)
 def liste_ozeti_getir(semboller):
     try:
-        # BIST 100 listesi uzun olduğu için toplu çekim kritik
         string_list = " ".join(semboller)
         data = yf.download(string_list, period="5d", group_by='ticker', progress=False)
         ozet_sozlugu = {}
@@ -109,8 +112,8 @@ def liste_ozeti_getir(semboller):
 
 def duygu_analizi(metin):
     metin = metin.lower()
-    pozitif = ["rekor", "kar", "artış", "büyüme", "onay", "yükseliş", "temettü", "anlaşma", "dev", "imza", "tavan", "olumlu", "hedef", "güçlü", "al", "kazanç", "zirve", "rekor"]
-    negatif = ["düşüş", "zarar", "satış", "ceza", "kriz", "endişe", "iptal", "gerileme", "iflas", "taban", "olumsuz", "dava", "risk", "zayıf", "sat", "kayıp", "şok"]
+    pozitif = ["rekor", "kar", "artış", "büyüme", "onay", "yükseliş", "temettü", "anlaşma", "dev", "imza", "tavan", "olumlu", "hedef", "güçlü", "al", "kazanç", "zirve"]
+    negatif = ["düşüş", "zarar", "satış", "ceza", "kriz", "endişe", "iptal", "gerileme", "iflas", "taban", "olumsuz", "dava", "risk", "zayıf", "sat", "kayıp"]
     skor = 0
     for p in pozitif: 
         if p in metin: skor += 1
@@ -126,18 +129,28 @@ periyot = st.sidebar.select_slider("Grafik Geçmişi", options=["1mo", "3mo", "1
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🦅 Piyasa Özeti (BIST 100)")
 
-# Verileri Çek (Biraz sürebilir)
-with st.spinner('Piyasa taranıyor...'):
+# --- YENİ: ARAMA KUTUSU ---
+arama_metni = st.sidebar.text_input("🔍 Hisse Ara", placeholder="Örn: THY, ASELS, KOZA...")
+
+# Verileri Çek
+with st.spinner('Veriler güncelleniyor...'):
     degisimler = liste_ozeti_getir(HAM_LISTE)
 
 def siralama_anahtari(kod): 
-    # Adı sözlükte yoksa kodun kendisini (IS'siz) kullan
     return ISIM_SOZLUGU.get(kod, kod.replace(".IS", ""))
-
 sirali_liste = sorted(HAM_LISTE, key=siralama_anahtari)
 
+# LİSTELEME DÖNGÜSÜ (Filtreli)
+bulunan_sayisi = 0
 for kod in sirali_liste:
     ad = ISIM_SOZLUGU.get(kod, kod.replace(".IS", ""))
+    
+    # ARAMA FİLTRESİ: Eğer arama metni ne kodda ne de isimde yoksa bu hisseyi atla
+    if arama_metni:
+        if arama_metni.lower() not in ad.lower() and arama_metni.lower() not in kod.lower():
+            continue
+
+    bulunan_sayisi += 1
     yuzde = degisimler.get(kod, 0.0) * 100
     
     if yuzde > 0: badge = "badge-up"; icon = "↑"; yuzde_txt = f"%{yuzde:.2f}"
@@ -154,13 +167,15 @@ for kod in sirali_liste:
             st.session_state.secilen_kod = kod
             st.rerun()
 
+if bulunan_sayisi == 0:
+    st.sidebar.warning("Hisse bulunamadı.")
+
 # --- SAĞ TARAF ---
 secilen_ad = ISIM_SOZLUGU.get(st.session_state.secilen_kod, st.session_state.secilen_kod.replace(".IS", ""))
 st.header(f"📊 {secilen_ad}")
 
 tab_grafik, tab_haber, tab_bilgi = st.tabs(["📈 CANLI GRAFİK", "🗞️ HABER MERKEZİ (AI)", "📘 ŞİRKET KARTI"])
 
-# --- TAB 1: GRAFİK ---
 with tab_grafik:
     @st.cache_data(ttl=60)
     def detay_veri(sembol, tip, zaman):
@@ -190,7 +205,6 @@ with tab_grafik:
         son = df['Close'].iloc[-1]
         degisim_val = ((son - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
         simge = "₺" if analiz_tipi == "TL (₺)" else "$"
-        
         c1, c2, c3 = st.columns(3)
         c1.metric("Son Fiyat", f"{son:.2f} {simge}", f"%{degisim_val:.2f}")
         c2.metric("En Yüksek", f"{df['High'].max():.2f} {simge}")
@@ -201,45 +215,35 @@ with tab_grafik:
         fig.add_trace(go.Bar(x=df.index, y=df['Volume'], name="Hacim", marker_color='rgba(100, 100, 255, 0.5)'), row=2, col=1)
         fig.update_layout(template="plotly_dark", height=550, xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.error("Veri alınamadı.")
+    else: st.error("Veri alınamadı.")
 
-# --- TAB 2: HABER MERKEZİ ---
 with tab_haber:
     st.subheader(f"🧠 Yapay Zeka Haber Analizi: {secilen_ad}")
     st.caption("Detaylar için başlıklara tıklayın 👇")
-    
     with st.spinner("Haberler analiz ediliyor..."):
         try:
             googlenews = GoogleNews(lang='tr', region='TR')
             arama_terimi = f"{secilen_ad} hisse yorum" if "GRAM" not in secilen_ad else f"{secilen_ad} yorum"
             googlenews.search(arama_terimi)
             haberler = googlenews.results()
-            
             if haberler:
                 for haber in haberler[:10]:
                     baslik = haber['title']
                     tarih = haber['date']
                     link = haber['link']
                     ozet = haber.get('desc', 'Özet bilgi bulunamadı.')
-                    
                     puan = duygu_analizi(baslik)
-                    
                     if puan > 0: emoji = "🟢"; msj = "Pozitif"; tip = st.success
                     elif puan < 0: emoji = "🔴"; msj = "Negatif"; tip = st.error
                     else: emoji = "🔵"; msj = "Nötr"; tip = st.info
-                    
                     with st.expander(f"{emoji} {baslik}"):
                         tip(f"**AI Analizi:** {msj}")
                         st.write(f"📅 **Tarih:** {tarih}")
                         st.write(f"📝 **Özet:** {ozet}")
                         st.link_button("🔗 Habere Git", link)
-            else:
-                st.warning("Güncel haber bulunamadı.")
-        except Exception as e:
-            st.error(f"Haber hatası: {e}")
+            else: st.warning("Güncel haber bulunamadı.")
+        except: st.error("Haber servisi hatası.")
 
-# --- TAB 3: ŞİRKET KARTI ---
 with tab_bilgi:
     try:
         if "IS" in st.session_state.secilen_kod:
@@ -250,6 +254,5 @@ with tab_bilgi:
             st.write(f"**Çalışan Sayısı:** {info.get('fullTimeEmployees', '-')}")
             st.markdown("### Şirket Özeti")
             st.write(info.get('longBusinessSummary', 'Açıklama bulunamadı.'))
-        else:
-            st.info("Emtia veya Döviz için şirket kartı bulunmaz.")
+        else: st.info("Emtia veya Döviz için şirket kartı bulunmaz.")
     except: st.write("Bilgi alınamadı.")
