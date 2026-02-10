@@ -1,12 +1,13 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import numpy as np # Hesaplama için eklendi
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from GoogleNews import GoogleNews
 import datetime
 
-# Otomatik yenileme kütüphanesi
+# Otomatik yenileme
 try:
     from streamlit_autorefresh import st_autorefresh
 except ImportError:
@@ -15,8 +16,7 @@ except ImportError:
 # --- 1. SİTE AYARLARI ---
 st.set_page_config(page_title="Artek Finans Pro", layout="wide", page_icon="🦅")
 
-# --- ZAMAN VE OTOMATİK YENİLEME AYARI ---
-# Türkiye Saati (UTC+3) Hesaplama Fonksiyonu
+# --- ZAMAN VE OTOMATİK YENİLEME ---
 def simdi_tr():
     return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=3)))
 
@@ -24,8 +24,7 @@ tr_saat = simdi_tr()
 saat = tr_saat.hour
 dakika = tr_saat.minute
 
-# KURAL: Sadece 09:00 ile 18:30 arasında otomatik yenileme yap
-# Hafta sonu kontrolü eklemedim, sadece saate bakıyor.
+# Borsa 09:55 - 18:10 arası açık varsayalım (Geniş aralık)
 borsa_acik_mi = False
 if (9 <= saat < 18) or (saat == 18 and dakika <= 30):
     borsa_acik_mi = True
@@ -36,7 +35,7 @@ if (9 <= saat < 18) or (saat == 18 and dakika <= 30):
 if 'secilen_kod' not in st.session_state:
     st.session_state.secilen_kod = "GC=F"
 
-# --- CSS STİLLERİ ---
+# --- CSS ---
 st.markdown("""
 <style>
     .main { background-color: #0e1117; }
@@ -53,12 +52,12 @@ st.markdown("""
     div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] { align-items: center; border-bottom: 1px solid #374151; padding-bottom: 5px; margin-bottom: 5px; }
     .streamlit-expanderHeader { font-weight: bold; background-color: #1f2937; border-radius: 5px; }
     
-    /* Arama Kutusu Stili */
-    div[data-testid="stTextInput"] > div > div > input {
-        background-color: #1f2937;
-        color: white;
-        border: 1px solid #4b5563;
-    }
+    div[data-testid="stTextInput"] > div > div > input { background-color: #1f2937; color: white; border: 1px solid #4b5563; }
+    
+    /* Derinlik Çubuğu Stili */
+    .depth-container { width: 100%; background-color: #374151; border-radius: 5px; height: 25px; display: flex; overflow: hidden; margin-top: 5px; }
+    .depth-buy { background-color: #00c853; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: black; }
+    .depth-sell { background-color: #d50000; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: white; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -69,9 +68,8 @@ with col_logo:
 with col_title:
     st.title("ARTEK FİNANS: BIST 100 PRO")
     durum_ikonu = "🟢" if borsa_acik_mi else "🔴"
-    durum_mesaj = "Piyasa Açık (Canlı Veri)" if borsa_acik_mi else "Piyasa Kapalı (Son Kapanış Verileri)"
+    durum_mesaj = "Piyasa Açık" if borsa_acik_mi else "Piyasa Kapalı"
     st.caption(f"{durum_ikonu} {durum_mesaj} | Türkiye Saati: {tr_saat.strftime('%H:%M:%S')}")
-
 st.markdown("---")
 
 # --- LİSTE ---
@@ -158,11 +156,8 @@ sirali_liste = sorted(HAM_LISTE, key=siralama_anahtari)
 bulunan_sayisi = 0
 for kod in sirali_liste:
     ad = ISIM_SOZLUGU.get(kod, kod.replace(".IS", ""))
-    
     if arama_metni:
-        if arama_metni.lower() not in ad.lower() and arama_metni.lower() not in kod.lower():
-            continue
-
+        if arama_metni.lower() not in ad.lower() and arama_metni.lower() not in kod.lower(): continue
     bulunan_sayisi += 1
     yuzde = degisimler.get(kod, 0.0) * 100
     
@@ -171,7 +166,6 @@ for kod in sirali_liste:
     else: badge = "badge-flat"; icon = "-"; yuzde_txt = "%0.00"
     
     aktif_mi = "🟡" if st.session_state.secilen_kod == kod else ""
-    
     col_txt, col_btn = st.sidebar.columns([0.8, 0.2])
     with col_txt:
         st.markdown(f"""<div style="display:flex; justify-content:space-between; align-items:center;"><span class="stock-name">{aktif_mi} {ad}</span><span class="badge {badge}">{icon} {yuzde_txt}</span></div>""", unsafe_allow_html=True)
@@ -180,25 +174,20 @@ for kod in sirali_liste:
             st.session_state.secilen_kod = kod
             st.rerun()
 
-if bulunan_sayisi == 0:
-    st.sidebar.warning("Hisse bulunamadı.")
+if bulunan_sayisi == 0: st.sidebar.warning("Hisse bulunamadı.")
 
 # --- SAĞ TARAF ---
 secilen_ad = ISIM_SOZLUGU.get(st.session_state.secilen_kod, st.session_state.secilen_kod.replace(".IS", ""))
 
-# LOGO VE BAŞLIK
 col_logo_header, col_text_header = st.columns([1, 15])
 with col_logo_header:
     try:
         if "IS" in st.session_state.secilen_kod:
              logo_url = yf.Ticker(st.session_state.secilen_kod).info.get('logo_url')
              if logo_url: st.image(logo_url, width=60)
-        elif "GC=F" in st.session_state.secilen_kod:
-             st.image("https://cdn-icons-png.flaticon.com/512/10091/10091217.png", width=60)
-        elif "SI=F" in st.session_state.secilen_kod:
-             st.image("https://cdn-icons-png.flaticon.com/512/10091/10091334.png", width=60)
-        elif "USD" in st.session_state.secilen_kod:
-             st.image("https://cdn-icons-png.flaticon.com/512/2933/2933884.png", width=60)
+        elif "GC=F" in st.session_state.secilen_kod: st.image("https://cdn-icons-png.flaticon.com/512/10091/10091217.png", width=60)
+        elif "SI=F" in st.session_state.secilen_kod: st.image("https://cdn-icons-png.flaticon.com/512/10091/10091334.png", width=60)
+        elif "USD" in st.session_state.secilen_kod: st.image("https://cdn-icons-png.flaticon.com/512/2933/2933884.png", width=60)
     except: pass
 
 with col_text_header:
@@ -206,6 +195,7 @@ with col_text_header:
 
 tab_grafik, tab_haber, tab_bilgi = st.tabs(["📈 CANLI GRAFİK", "🗞️ HABER MERKEZİ (AI)", "📘 ŞİRKET KARTI"])
 
+# --- 1. GRAFİK VE DERİNLİK SEKME ---
 with tab_grafik:
     @st.cache_data(ttl=60)
     def detay_veri(sembol, tip, zaman):
@@ -236,53 +226,66 @@ with tab_grafik:
         degisim_val = ((son - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
         simge = "₺" if analiz_tipi == "TL (₺)" else "$"
         
-        # Grafik için Hareketli Ortalama (Trend Çizgisi)
+        # SMA Ekle
         df['SMA20'] = df['Close'].rolling(window=20).mean()
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Anlık Değer (Son Fiyat)", f"{son:.2f} {simge}", f"%{degisim_val:.2f}")
+        c1.metric("Anlık Değer", f"{son:.2f} {simge}", f"%{degisim_val:.2f}")
         c2.metric("En Yüksek", f"{df['High'].max():.2f} {simge}")
         c3.metric("En Düşük", f"{df['Low'].min():.2f} {simge}")
         
-        # --- GRAFİK TASARIMI İYİLEŞTİRİLDİ ---
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_width=[0.2, 0.7], vertical_spacing=0.02)
-        
-        # 1. Mum Grafiği
-        fig.add_trace(go.Candlestick(
-            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], 
-            name="Fiyat", increasing_line_color='#26a69a', decreasing_line_color='#ef5350'
-        ), row=1, col=1)
-
-        # 2. Trend Çizgisi (SMA 20)
-        fig.add_trace(go.Scatter(
-            x=df.index, y=df['SMA20'], line=dict(color='#ffd700', width=1.5), name="Trend (Ort.)"
-        ), row=1, col=1)
-
-        # 3. Hacim
-        fig.add_trace(go.Bar(
-            x=df.index, y=df['Volume'], name="Hacim", marker_color='rgba(100, 100, 255, 0.3)'
-        ), row=2, col=1)
-        
-        # Tasarım Ayarları
-        fig.update_layout(
-            template="plotly_dark", 
-            height=600, 
-            xaxis_rangeslider_visible=False,
-            hovermode='x unified', # İmleç tüm verileri tek çizgide gösterir
-            margin=dict(l=10, r=10, t=30, b=10),
-            paper_bgcolor="#0e1117",
-            plot_bgcolor="#0e1117",
-            font=dict(color="#e5e7eb"),
-            # Izgara Ayarları
-            xaxis=dict(showgrid=True, gridcolor='#374151'),
-            yaxis=dict(showgrid=True, gridcolor='#374151')
-        )
+        # Grafik
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_width=[0.2, 0.7], vertical_spacing=0.05)
+        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Fiyat"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], line=dict(color='#fbbf24', width=1.5), name="SMA 20"), row=1, col=1)
+        fig.add_trace(go.Bar(x=df.index, y=df['Volume'], name="Hacim", marker_color='rgba(100, 100, 255, 0.3)'), row=2, col=1)
+        fig.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
+
+        # --- YENİ: DERİNLİK (VOLUME PROFILE) SİMÜLASYONU ---
+        st.markdown("### 📊 Derinlik ve Alıcı/Satıcı Dengesi (Tahmini)")
+        
+        @st.cache_data(ttl=60)
+        def hesapla_derinlik(sembol):
+            try:
+                # Günlük dakika verisini çek (Son 1 gün)
+                df_intraday = yf.download(sembol, period="1d", interval="1m", progress=False)
+                if df_intraday.empty: return 0, 0
+                
+                # Alış/Satış Ayrıştırma (Basit Heuristik: Kapanış > Açılış ise Alış, değilse Satış)
+                buy_vol = df_intraday.loc[df_intraday['Close'] >= df_intraday['Open'], 'Volume'].sum()
+                sell_vol = df_intraday.loc[df_intraday['Close'] < df_intraday['Open'], 'Volume'].sum()
+                return buy_vol, sell_vol
+            except: return 0, 0
+
+        alis_lot, satis_lot = hesapla_derinlik(st.session_state.secilen_kod)
+        
+        if alis_lot + satis_lot > 0:
+            toplam = alis_lot + satis_lot
+            alis_yuzde = (alis_lot / toplam) * 100
+            satis_yuzde = (satis_lot / toplam) * 100
+            
+            d1, d2 = st.columns(2)
+            d1.metric("Alıcı Ağırlıklı Lot", f"{int(alis_lot):,}", f"%{alis_yuzde:.1f}")
+            d2.metric("Satıcı Ağırlıklı Lot", f"{int(satis_lot):,}", f"-%{satis_yuzde:.1f}", delta_color="inverse")
+            
+            # Görsel Çubuk
+            st.markdown(f"""
+            <div class="depth-container">
+                <div class="depth-buy" style="width: {alis_yuzde}%;">ALIŞ %{alis_yuzde:.0f}</div>
+                <div class="depth-sell" style="width: {satis_yuzde}%;">SATIŞ %{satis_yuzde:.0f}</div>
+            </div>
+            <div style='text-align:center; font-size:11px; color:#9ca3af; margin-top:5px;'>
+                *Not: Gerçek derinlik (Level 2) verisi ücretli olduğu için, bu veriler fiyat hareketlerine göre hesaplanan tahmini hacim dağılımıdır.
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("Bu seans için henüz yeterli derinlik/hacim verisi oluşmadı.")
+
     else: st.error("Veri alınamadı.")
 
 with tab_haber:
     st.subheader(f"🧠 Yapay Zeka Haber Analizi: {secilen_ad}")
-    st.caption("Detaylar için başlıklara tıklayın 👇")
     with st.spinner("Haberler analiz ediliyor..."):
         try:
             googlenews = GoogleNews(lang='tr', region='TR')
