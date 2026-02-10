@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from GoogleNews import GoogleNews # Haber motorumuz
+from GoogleNews import GoogleNews
 import datetime
 
 # Otomatik yenileme
@@ -13,7 +13,7 @@ except ImportError:
     st_autorefresh = None
 
 # --- 1. SİTE AYARLARI ---
-st.set_page_config(page_title="Raffık Finans AI", layout="wide", page_icon="🦅")
+st.set_page_config(page_title="Raffık Finans v4.2", layout="wide", page_icon="🦅")
 
 if st_autorefresh:
     st_autorefresh(interval=60000, key="fiyat_yenileme")
@@ -22,18 +22,13 @@ if st_autorefresh:
 if 'secilen_kod' not in st.session_state:
     st.session_state.secilen_kod = "GC=F"
 
-# --- CSS (Görsel Tasarım) ---
+# --- CSS TASARIMI ---
 st.markdown("""
 <style>
     .main { background-color: #0e1117; }
     h1 { color: #ffd700; font-family: 'Trebuchet MS', sans-serif; }
     div[data-testid="stMetric"] { background-color: #1f2937; border: 1px solid #374151; padding: 10px; border-radius: 10px; }
     
-    /* Sekme (Tab) Tasarımı */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] { background-color: #1f2937; border-radius: 5px; color: white; border: 1px solid #374151; }
-    .stTabs [aria-selected="true"] { background-color: #ffd700; color: black; font-weight: bold; }
-
     /* Yan Menü Tasarımı */
     .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; font-weight: bold; font-size: 12px; margin-left: 5px; }
     .badge-up { background-color: #065f46; color: #34d399; }
@@ -41,11 +36,15 @@ st.markdown("""
     .badge-flat { background-color: #374151; color: #d1d5db; }
     .stock-name { font-weight: 600; font-size: 14px; color: #e5e7eb; }
     
-    /* Buton Ayarı */
     div.stButton > button { padding: 0px 5px; min-height: 30px; height: 30px; line-height: 1; border: 1px solid #4b5563; }
-    
-    /* Yan menü hizalama */
     div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"] { align-items: center; border-bottom: 1px solid #374151; padding-bottom: 5px; margin-bottom: 5px; }
+
+    /* Expander (Haber Kutusu) Başlık Ayarı */
+    .streamlit-expanderHeader {
+        font-weight: bold;
+        background-color: #1f2937;
+        border-radius: 5px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -55,7 +54,7 @@ with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
     st.title("RAFFIK FİNANS: AI ANALİZ")
-    st.caption(f"🔴 Yapay Zeka Haber Analizi Aktif | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
+    st.caption(f"🔴 Tıklanabilir Haberler Aktif | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
 st.markdown("---")
 
 # --- LİSTE ---
@@ -68,7 +67,6 @@ HAM_LISTE = [
     "ENJSA.IS", "ALARK.IS", "ODAS.IS", "KOZAL.IS", "KRDMD.IS",
     "ARCLK.IS", "VESTL.IS", "EUPWR.IS", "CWENE.IS", "SMRTG.IS"
 ]
-
 ISIM_SOZLUGU = { "GC=F": "GRAM ALTIN", "SI=F": "GRAM GÜMÜŞ", "USDTRY=X": "DOLAR/TL" }
 
 # --- FONKSİYONLAR ---
@@ -96,21 +94,19 @@ def liste_ozeti_getir(semboller):
         return ozet_sozlugu
     except: return {}
 
-# 🧠 YAPAY ZEKA SKORLAMA FONKSİYONU
 def duygu_analizi(metin):
     metin = metin.lower()
-    pozitif = ["rekor", "kar", "artış", "büyüme", "onay", "yükseliş", "temettü", "anlaşma", "dev", "imza", "tavan", "olumlu", "hedef", "güçlü", "al", "kazanç"]
-    negatif = ["düşüş", "zarar", "satış", "ceza", "kriz", "endişe", "iptal", "gerileme", "iflas", "taban", "olumsuz", "dava", "risk", "zayıf", "sat"]
+    pozitif = ["rekor", "kar", "artış", "büyüme", "onay", "yükseliş", "temettü", "anlaşma", "dev", "imza", "tavan", "olumlu", "hedef", "güçlü", "al", "kazanç", "zirve"]
+    negatif = ["düşüş", "zarar", "satış", "ceza", "kriz", "endişe", "iptal", "gerileme", "iflas", "taban", "olumsuz", "dava", "risk", "zayıf", "sat", "kayıp"]
     
     skor = 0
     for p in pozitif: 
         if p in metin: skor += 1
     for n in negatif: 
         if n in metin: skor -= 1
-    
     return skor
 
-# --- YAN MENÜ: AYARLAR ---
+# --- YAN MENÜ ---
 st.sidebar.markdown("### ⚙️ Ayarlar")
 analiz_tipi = st.sidebar.radio("Para Birimi", ["TL (₺)", "Dolar ($)"], horizontal=True)
 periyot = st.sidebar.select_slider("Grafik Geçmişi", options=["1mo", "3mo", "1y", "5y"], value="1y")
@@ -118,7 +114,6 @@ periyot = st.sidebar.select_slider("Grafik Geçmişi", options=["1mo", "3mo", "1
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🦅 Piyasa Özeti")
 
-# --- YAN MENÜ: LİSTE ---
 degisimler = liste_ozeti_getir(HAM_LISTE)
 def siralama_anahtari(kod): return ISIM_SOZLUGU.get(kod, kod.replace(".IS", ""))
 sirali_liste = sorted(HAM_LISTE, key=siralama_anahtari)
@@ -141,14 +136,13 @@ for kod in sirali_liste:
             st.session_state.secilen_kod = kod
             st.rerun()
 
-# --- SAĞ TARAF: SEKMELİ YAPI ---
+# --- SAĞ TARAF ---
 secilen_ad = ISIM_SOZLUGU.get(st.session_state.secilen_kod, st.session_state.secilen_kod.replace(".IS", ""))
 st.header(f"📊 {secilen_ad}")
 
-# Sekmeleri Oluştur
 tab_grafik, tab_haber, tab_bilgi = st.tabs(["📈 CANLI GRAFİK", "🗞️ HABER MERKEZİ (AI)", "📘 ŞİRKET KARTI"])
 
-# 1. SEKME: GRAFİK (Klasik Görünüm)
+# --- TAB 1: GRAFİK ---
 with tab_grafik:
     @st.cache_data(ttl=60)
     def detay_veri(sembol, tip, zaman):
@@ -192,55 +186,64 @@ with tab_grafik:
     else:
         st.error("Veri alınamadı.")
 
-# 2. SEKME: HABER MERKEZİ (İstediğin Renkli Haberler)
+# --- TAB 2: TIKLANABİLİR HABERLER (YENİLENDİ) ---
 with tab_haber:
     st.subheader(f"🧠 Yapay Zeka Haber Analizi: {secilen_ad}")
+    st.caption("Detayları görmek için haber başlığına tıklayın 👇")
     
-    with st.spinner("İnternet taranıyor ve haberler analiz ediliyor..."):
+    with st.spinner("Haberler analiz ediliyor..."):
         try:
             googlenews = GoogleNews(lang='tr', region='TR')
-            # Arama kelimesini ayarla
             arama_terimi = f"{secilen_ad} hisse yorum" if "GRAM" not in secilen_ad else f"{secilen_ad} yorum"
             googlenews.search(arama_terimi)
             haberler = googlenews.results()
             
             if haberler:
-                # Haberleri alt alta diz
-                for haber in haberler[:10]: # En son 10 haber
+                for haber in haberler[:10]:
                     baslik = haber['title']
                     tarih = haber['date']
                     link = haber['link']
+                    ozet = haber.get('desc', 'Özet bilgi bulunamadı.') # Varsa özeti al
                     
-                    # 1. Duygu Analizi Yap
                     puan = duygu_analizi(baslik)
                     
-                    # 2. Puana Göre Renk ve Kutu Seç
+                    # Başlık Emojisi ve Renkli Kutu İçeriği
                     if puan > 0:
-                        # POZİTİF -> YEŞİL
-                        st.success(f"🟢 **{baslik}**\n\n_{tarih}_")
+                        emoji = "🟢"
+                        durum_mesaj = "Pozitif Algılandı"
+                        kutu_tipi = st.success
                     elif puan < 0:
-                        # NEGATİF -> KIRMIZI
-                        st.error(f"🔴 **{baslik}**\n\n_{tarih}_")
+                        emoji = "🔴"
+                        durum_mesaj = "Negatif Algılandı"
+                        kutu_tipi = st.error
                     else:
-                        # NÖTR -> MAVİ
-                        st.info(f"🔵 **{baslik}**\n\n_{tarih}_")
+                        emoji = "🔵"
+                        durum_mesaj = "Nötr / Bilgi"
+                        kutu_tipi = st.info
+                    
+                    # TIKLANABİLİR KUTU (Expander)
+                    with st.expander(f"{emoji} {baslik}"):
+                        kutu_tipi(f"**Yapay Zeka Analizi:** {durum_mesaj}")
+                        st.write(f"📅 **Tarih:** {tarih}")
+                        st.write(f"📝 **Özet:** {ozet}")
+                        # Habere git butonu
+                        st.link_button("🔗 Haberi Kaynağında Oku", link)
             else:
                 st.warning("Bu hisseyle ilgili güncel haber bulunamadı.")
-                
         except Exception as e:
             st.error(f"Haber servisine bağlanırken hata oluştu: {e}")
 
-# 3. SEKME: ŞİRKET KARTI (Özet Bilgi)
+# --- TAB 3: BİLGİ ---
 with tab_bilgi:
     try:
         if "IS" in st.session_state.secilen_kod:
             ticker = yf.Ticker(st.session_state.secilen_kod)
             info = ticker.info
-            st.write(f"**Sektör:** {info.get('sector', 'Bilinmiyor')}")
-            st.write(f"**Faaliyet Alanı:** {info.get('industry', 'Bilinmiyor')}")
-            st.write(f"**Şirket Hakkında:**")
+            st.write(f"**Sektör:** {info.get('sector', '-')}")
+            st.write(f"**Endüstri:** {info.get('industry', '-')}")
+            st.write(f"**Çalışan Sayısı:** {info.get('fullTimeEmployees', '-')}")
+            st.markdown("### Şirket Özeti")
             st.write(info.get('longBusinessSummary', 'Açıklama bulunamadı.'))
         else:
-            st.info("Bu bir Emtia veya Döviz çiftidir. Temel analiz verisi bulunmaz.")
-    except:
-        st.write("Bilgi alınamadı.")
+            st.info("Emtia veya Döviz için şirket kartı bulunmaz.")
+    except: st.write("Bilgi alınamadı.")
