@@ -54,7 +54,7 @@ with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
     st.title("Artek Finans")
-    st.caption(f"🔴 Arama Özelliği Aktif | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
+    st.caption(f"🔴 Veriler en fazla 15 dk gecikmeli | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
 st.markdown("---")
 
 # --- LİSTE ---
@@ -256,4 +256,5 @@ with tab_bilgi:
             st.write(info.get('longBusinessSummary', 'Açıklama bulunamadı.'))
         else: st.info("Emtia veya Döviz için şirket kartı bulunmaz.")
     except: st.write("Bilgi alınamadı.")
+
 
