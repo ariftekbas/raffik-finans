@@ -13,26 +13,26 @@ import google.generativeai as genai
 # ==========================================
 GEMINI_API_KEY = "AIzaSyAohuPCw8DxngrgEavuiybzNCjRg3cS57Y"
 
-# Gemini Kurulumu
+# ==========================================
+# ⚙️ SİTE YAPILANDIRMASI
+# ==========================================
+st.set_page_config(page_title="Artek Finans Pro", layout="wide", page_icon="🦅")
+
+# Gemini Kurulumu ve Model Seçimi
 AI_AKTIF = False
+model = None
+
 try:
     if GEMINI_API_KEY and "BURAYA" not in GEMINI_API_KEY:
         genai.configure(api_key=GEMINI_API_KEY)
-        # Requirements.txt guncellendigi icin bu model calisacaktir
-        model = genai.GenerativeModel('gemini-1.5-flash')
         AI_AKTIF = True
-except:
-    AI_AKTIF = False
+except Exception as e:
+    st.error(f"AI Başlatma Hatası: {e}")
 
 try:
     from streamlit_autorefresh import st_autorefresh
 except ImportError:
     st_autorefresh = None
-
-# ==========================================
-# ⚙️ SİTE YAPILANDIRMASI
-# ==========================================
-st.set_page_config(page_title="Artek Finans Pro", layout="wide", page_icon="🦅")
 
 # CSS Tasarımı
 st.markdown("""
@@ -115,14 +115,12 @@ ISIM_SOZLUGU = {
 # 🛠️ FONKSİYONLAR
 # ==========================================
 
-# 1. Toplu Liste Verisi (Yan Menü İçin)
 @st.cache_data(ttl=60)
 def liste_ozeti_getir(semboller):
     try:
         string_list = " ".join(semboller)
         data = yf.download(string_list, period="5d", group_by='ticker', progress=False)
         ozet_sozlugu = {}
-        # Dolar değişimi (Gram hesapları için)
         try:
             usd_df = data["USDTRY=X"]['Close'].dropna()
             usd_change = ((usd_df.iloc[-1] - usd_df.iloc[-2]) / usd_df.iloc[-2]) if len(usd_df) > 1 else 0
@@ -141,7 +139,6 @@ def liste_ozeti_getir(semboller):
         return ozet_sozlugu
     except: return {}
 
-# 2. RSS Haber Çekme (Google News XML)
 def google_rss_haberleri(arama_terimi):
     try:
         url = f"https://news.google.com/rss/search?q={arama_terimi}&hl=tr&gl=TR&ceid=TR:tr"
@@ -149,7 +146,7 @@ def google_rss_haberleri(arama_terimi):
         if response.status_code == 200:
             root = ET.fromstring(response.content)
             haberler = []
-            for item in root.findall('.//item')[:5]: # Son 5 haber (AI için)
+            for item in root.findall('.//item')[:5]: # Son 5 haber
                 haberler.append({
                     'title': item.find('title').text, 
                     'link': item.find('link').text, 
@@ -159,30 +156,27 @@ def google_rss_haberleri(arama_terimi):
         return []
     except: return []
 
-# 3. YENİ AI FONKSİYONU: TOPLU ANALİZ (Hata Yakalamalı)
+# --- AKILLI AI FONKSİYONU (ÇOKLU MODEL DENEME) ---
 def gemini_piyasa_ozeti(basliklar_listesi, hisse):
     if not AI_AKTIF:
         return "Yapay zeka anahtarı girilmediği için analiz yapılamıyor."
     
     basliklar_metni = "\n".join([f"- {b}" for b in basliklar_listesi])
+    prompt = f"Borsa analistisin. '{hisse}' için haberleri TEK PARAGRAFTA özetle: {basliklar_metni}"
     
-    prompt = f"""
-    Sen kıdemli bir borsa analistisin. Aşağıda '{hisse}' hissesi ile ilgili son haber başlıkları var.
-    Bu başlıkları bütünsel olarak değerlendir ve piyasanın bu hisseye bakışını TEK BİR PARAGRAFTA, samimi bir dille özetle.
-    Haberler olumlu mu, olumsuz mu? Yatırımcı neye dikkat etmeli?
+    # Sırayla Modelleri Dene
+    modeller_listesi = ['gemini-1.5-flash', 'gemini-pro', 'gemini-1.0-pro']
     
-    Haberler:
-    {basliklar_metni}
-    """
-    try:
-        # Generate content with error handling
-        response = model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        # HATA YAKALAMA KISMI
-        return f"⚠️ YAPAY ZEKA HATASI: {str(e)}\n\n(Not: Lütfen requirements.txt dosyasını güncelleyip uygulamayı Reboot edin!)"
+    for m_adi in modeller_listesi:
+        try:
+            local_model = genai.GenerativeModel(m_adi)
+            response = local_model.generate_content(prompt)
+            return response.text.strip()
+        except Exception:
+            continue # Bu model çalışmadı, bir sonrakine geç
+            
+    return "⚠️ Üzgünüm, şu an hiçbir Yapay Zeka modeline bağlanılamadı. Lütfen API kotanızı kontrol edin."
 
-# 4. Teknik İndikatörler
 def calculate_rsi(data, period=14):
     delta = data.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
