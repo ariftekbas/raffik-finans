@@ -6,7 +6,7 @@ from plotly.subplots import make_subplots
 from GoogleNews import GoogleNews
 import datetime
 
-# Otomatik yenileme
+# Otomatik yenileme kütüphanesi
 try:
     from streamlit_autorefresh import st_autorefresh
 except ImportError:
@@ -15,14 +15,28 @@ except ImportError:
 # --- 1. SİTE AYARLARI ---
 st.set_page_config(page_title="Artek Finans Pro", layout="wide", page_icon="🦅")
 
-if st_autorefresh:
-    st_autorefresh(interval=60000, key="fiyat_yenileme")
+# --- ZAMAN VE OTOMATİK YENİLEME AYARI ---
+# Türkiye Saati (UTC+3) Hesaplama Fonksiyonu
+def simdi_tr():
+    return datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=3)))
+
+tr_saat = simdi_tr()
+saat = tr_saat.hour
+dakika = tr_saat.minute
+
+# KURAL: Sadece 09:00 ile 18:30 arasında otomatik yenileme yap
+# Hafta sonu kontrolü eklemedim, sadece saate bakıyor.
+borsa_acik_mi = False
+if (9 <= saat < 18) or (saat == 18 and dakika <= 30):
+    borsa_acik_mi = True
+    if st_autorefresh:
+        st_autorefresh(interval=60000, key="fiyat_yenileme")
 
 # --- HAFIZA ---
 if 'secilen_kod' not in st.session_state:
     st.session_state.secilen_kod = "GC=F"
 
-# --- CSS ---
+# --- CSS STİLLERİ ---
 st.markdown("""
 <style>
     .main { background-color: #0e1117; }
@@ -54,7 +68,10 @@ with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
     st.title("ARTEK FİNANS: BIST 100 PRO")
-    st.caption(f"🔴 Logo Destekli Analiz Ekranı | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
+    durum_ikonu = "🟢" if borsa_acik_mi else "🔴"
+    durum_mesaj = "Piyasa Açık (Canlı Veri)" if borsa_acik_mi else "Piyasa Kapalı (Son Kapanış Verileri)"
+    st.caption(f"{durum_ikonu} {durum_mesaj} | Türkiye Saati: {tr_saat.strftime('%H:%M:%S')}")
+
 st.markdown("---")
 
 # --- LİSTE ---
@@ -169,21 +186,19 @@ if bulunan_sayisi == 0:
 # --- SAĞ TARAF ---
 secilen_ad = ISIM_SOZLUGU.get(st.session_state.secilen_kod, st.session_state.secilen_kod.replace(".IS", ""))
 
-# --- YENİ: LOGO VE BAŞLIK ALANI ---
+# LOGO VE BAŞLIK
 col_logo_header, col_text_header = st.columns([1, 15])
 with col_logo_header:
-    # Logo Getirme Mantığı
     try:
         if "IS" in st.session_state.secilen_kod:
-             # Yahoo Finance'den logo çekmeyi dener
              logo_url = yf.Ticker(st.session_state.secilen_kod).info.get('logo_url')
              if logo_url: st.image(logo_url, width=60)
         elif "GC=F" in st.session_state.secilen_kod:
-             st.image("https://cdn-icons-png.flaticon.com/512/10091/10091217.png", width=60) # Altın
+             st.image("https://cdn-icons-png.flaticon.com/512/10091/10091217.png", width=60)
         elif "SI=F" in st.session_state.secilen_kod:
-             st.image("https://cdn-icons-png.flaticon.com/512/10091/10091334.png", width=60) # Gümüş
+             st.image("https://cdn-icons-png.flaticon.com/512/10091/10091334.png", width=60)
         elif "USD" in st.session_state.secilen_kod:
-             st.image("https://cdn-icons-png.flaticon.com/512/2933/2933884.png", width=60) # Dolar
+             st.image("https://cdn-icons-png.flaticon.com/512/2933/2933884.png", width=60)
     except: pass
 
 with col_text_header:
@@ -220,15 +235,48 @@ with tab_grafik:
         son = df['Close'].iloc[-1]
         degisim_val = ((son - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
         simge = "₺" if analiz_tipi == "TL (₺)" else "$"
+        
+        # Grafik için Hareketli Ortalama (Trend Çizgisi)
+        df['SMA20'] = df['Close'].rolling(window=20).mean()
+
         c1, c2, c3 = st.columns(3)
-        c1.metric("Son Fiyat", f"{son:.2f} {simge}", f"%{degisim_val:.2f}")
+        c1.metric("Anlık Değer (Son Fiyat)", f"{son:.2f} {simge}", f"%{degisim_val:.2f}")
         c2.metric("En Yüksek", f"{df['High'].max():.2f} {simge}")
         c3.metric("En Düşük", f"{df['Low'].min():.2f} {simge}")
         
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_width=[0.2, 0.7], vertical_spacing=0.05)
-        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Fiyat"), row=1, col=1)
-        fig.add_trace(go.Bar(x=df.index, y=df['Volume'], name="Hacim", marker_color='rgba(100, 100, 255, 0.5)'), row=2, col=1)
-        fig.update_layout(template="plotly_dark", height=550, xaxis_rangeslider_visible=False)
+        # --- GRAFİK TASARIMI İYİLEŞTİRİLDİ ---
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_width=[0.2, 0.7], vertical_spacing=0.02)
+        
+        # 1. Mum Grafiği
+        fig.add_trace(go.Candlestick(
+            x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], 
+            name="Fiyat", increasing_line_color='#26a69a', decreasing_line_color='#ef5350'
+        ), row=1, col=1)
+
+        # 2. Trend Çizgisi (SMA 20)
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df['SMA20'], line=dict(color='#ffd700', width=1.5), name="Trend (Ort.)"
+        ), row=1, col=1)
+
+        # 3. Hacim
+        fig.add_trace(go.Bar(
+            x=df.index, y=df['Volume'], name="Hacim", marker_color='rgba(100, 100, 255, 0.3)'
+        ), row=2, col=1)
+        
+        # Tasarım Ayarları
+        fig.update_layout(
+            template="plotly_dark", 
+            height=600, 
+            xaxis_rangeslider_visible=False,
+            hovermode='x unified', # İmleç tüm verileri tek çizgide gösterir
+            margin=dict(l=10, r=10, t=30, b=10),
+            paper_bgcolor="#0e1117",
+            plot_bgcolor="#0e1117",
+            font=dict(color="#e5e7eb"),
+            # Izgara Ayarları
+            xaxis=dict(showgrid=True, gridcolor='#374151'),
+            yaxis=dict(showgrid=True, gridcolor='#374151')
+        )
         st.plotly_chart(fig, use_container_width=True)
     else: st.error("Veri alınamadı.")
 
