@@ -12,8 +12,8 @@ try:
 except ImportError:
     st_autorefresh = None
 
-# --- 1. SİTE AYARLARI (GÜNCELLENDİ: ARTEK FİNANS) ---
-st.set_page_config(page_title="Artek Finans", layout="wide", page_icon="🦅")
+# --- 1. SİTE AYARLARI ---
+st.set_page_config(page_title="Artek Finans Pro", layout="wide", page_icon="🦅")
 
 if st_autorefresh:
     st_autorefresh(interval=60000, key="fiyat_yenileme")
@@ -48,13 +48,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- BAŞLIK (GÜNCELLENDİ: ARTEK FİNANS) ---
+# --- BAŞLIK ---
 col_logo, col_title = st.columns([1, 8])
 with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
     st.title("ARTEK FİNANS: BIST 100 PRO")
-    st.caption(f"🔴 Yapay Zeka Destekli Borsa Takip | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
+    st.caption(f"🔴 Logo Destekli Analiz Ekranı | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
 st.markdown("---")
 
 # --- LİSTE ---
@@ -129,10 +129,8 @@ periyot = st.sidebar.select_slider("Grafik Geçmişi", options=["1mo", "3mo", "1
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🦅 Piyasa Özeti")
 
-# ARAMA KUTUSU
 arama_metni = st.sidebar.text_input("🔍 Hisse Ara", placeholder="Örn: THY, ASELS, KOZA...")
 
-# Verileri Çek
 with st.spinner('Veriler güncelleniyor...'):
     degisimler = liste_ozeti_getir(HAM_LISTE)
 
@@ -140,12 +138,10 @@ def siralama_anahtari(kod):
     return ISIM_SOZLUGU.get(kod, kod.replace(".IS", ""))
 sirali_liste = sorted(HAM_LISTE, key=siralama_anahtari)
 
-# LİSTELEME DÖNGÜSÜ
 bulunan_sayisi = 0
 for kod in sirali_liste:
     ad = ISIM_SOZLUGU.get(kod, kod.replace(".IS", ""))
     
-    # ARAMA FİLTRESİ
     if arama_metni:
         if arama_metni.lower() not in ad.lower() and arama_metni.lower() not in kod.lower():
             continue
@@ -172,7 +168,26 @@ if bulunan_sayisi == 0:
 
 # --- SAĞ TARAF ---
 secilen_ad = ISIM_SOZLUGU.get(st.session_state.secilen_kod, st.session_state.secilen_kod.replace(".IS", ""))
-st.header(f"📊 {secilen_ad}")
+
+# --- YENİ: LOGO VE BAŞLIK ALANI ---
+col_logo_header, col_text_header = st.columns([1, 15])
+with col_logo_header:
+    # Logo Getirme Mantığı
+    try:
+        if "IS" in st.session_state.secilen_kod:
+             # Yahoo Finance'den logo çekmeyi dener
+             logo_url = yf.Ticker(st.session_state.secilen_kod).info.get('logo_url')
+             if logo_url: st.image(logo_url, width=60)
+        elif "GC=F" in st.session_state.secilen_kod:
+             st.image("https://cdn-icons-png.flaticon.com/512/10091/10091217.png", width=60) # Altın
+        elif "SI=F" in st.session_state.secilen_kod:
+             st.image("https://cdn-icons-png.flaticon.com/512/10091/10091334.png", width=60) # Gümüş
+        elif "USD" in st.session_state.secilen_kod:
+             st.image("https://cdn-icons-png.flaticon.com/512/2933/2933884.png", width=60) # Dolar
+    except: pass
+
+with col_text_header:
+    st.header(f"📊 {secilen_ad}")
 
 tab_grafik, tab_haber, tab_bilgi = st.tabs(["📈 CANLI GRAFİK", "🗞️ HABER MERKEZİ (AI)", "📘 ŞİRKET KARTI"])
 
