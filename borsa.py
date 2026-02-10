@@ -16,14 +16,14 @@ GEMINI_API_KEY = "AIzaSyCFEUd8gutJ4c4hD6cOkf8vLBayEJpAzu0"
 # ==========================================
 # ⚙️ SİTE YAPILANDIRMASI
 # ==========================================
-st.set_page_config(page_title="Artek Finans Pro", layout="wide", page_icon="🦅")
+st.set_page_config(page_title="Arse Finans", layout="wide", page_icon="🦅")
 
 # Gemini Kurulumu ve Model Seçimi
 AI_AKTIF = False
 model = None
 
 try:
-    if GEMINI_API_KEY and "BURAYA" not in GEMINI_API_KEY:
+    if GEMINI_API_KEY and "AIzaSyCFEUd8gutJ4c4hD6cOkf8vLBayEJpAzu0" not in GEMINI_API_KEY:
         genai.configure(api_key=GEMINI_API_KEY)
         AI_AKTIF = True
 except Exception as e:
@@ -380,5 +380,6 @@ with tab_bilgi:
             st.write(tik.info.get('longBusinessSummary', ''))
         else: st.info("Şirket verisi yok.")
     except: st.write("Bilgi alınamadı.")
+
 
 
