@@ -11,7 +11,7 @@ import google.generativeai as genai
 # ==========================================
 # 🔑 AYARLAR VE API ANAHTARI
 # ==========================================
-GEMINI_API_KEY = "AIzaSyAohuPCw8DxngrgEavuiybzNCjRg3cS57Y"
+GEMINI_API_KEY = "AIzaSyAFxcC0OngkmzVF8C5WQyMkWpwtgtpO3Jk"
 
 # ==========================================
 # ⚙️ SİTE YAPILANDIRMASI
@@ -380,3 +380,4 @@ with tab_bilgi:
             st.write(tik.info.get('longBusinessSummary', ''))
         else: st.info("Şirket verisi yok.")
     except: st.write("Bilgi alınamadı.")
+
