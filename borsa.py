@@ -7,16 +7,15 @@ from GoogleNews import GoogleNews
 import datetime
 
 # --- 1. SİTE AYARLARI ---
-st.set_page_config(page_title="Raffık Finans", layout="wide", page_icon="🦅")
+st.set_page_config(page_title="Raffık Finans v2", layout="wide", page_icon="🦅")
 
 st.markdown("""
 <style>
     .main { background-color: #0e1117; }
-    h1 { color: #ffd700; font-family: 'Trebuchet MS', sans-serif; } /* Altın Sarısı Başlık */
+    h1 { color: #ffd700; font-family: 'Trebuchet MS', sans-serif; }
     .stTabs [data-baseweb="tab-list"] { gap: 15px; }
     .stTabs [data-baseweb="tab"] { height: 45px; background-color: #1f2937; border-radius: 8px; color: white; border: 1px solid #374151; }
     .stTabs [aria-selected="true"] { background-color: #ffd700; color: black; font-weight: bold; border: none; }
-    /* Metrik Kutuları */
     div[data-testid="stMetric"] { background-color: #1f2937; border: 1px solid #374151; padding: 10px; border-radius: 10px; }
     div[data-testid="stMetricLabel"] { color: #9ca3af; }
     div[data-testid="stMetricValue"] { color: #ffffff; }
@@ -28,15 +27,14 @@ col_logo, col_title = st.columns([1, 8])
 with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
-    st.title("RAFFIK FİNANS: CANLI TAKİP")
-    st.caption("🔴 Veriler anlık güncellenir (Gecikme: 15dk)")
+    st.title("RAFFIK FİNANS: CANLI TAKİP v2.0")
+    st.caption("🔴 Wilder's RSI & Hızlı Veri Modu Aktif")
 st.markdown("---")
 
 # --- YAN MENÜ ---
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2910/2910312.png", width=120)
 st.sidebar.markdown("### 🦅 Kontrol Paneli")
 
-# Varlık Listesi
 varlik_listesi = [
     "GC=F", "SI=F", 
     "THYAO.IS", "ASELS.IS", "BIMAS.IS", "EREGL.IS", "TUPRS.IS", 
@@ -53,11 +51,9 @@ secilen_kod = st.sidebar.selectbox("Varlık Seçin", varlik_listesi, format_func
 analiz_tipi = st.sidebar.radio("Para Birimi", ["TL (₺)", "Dolar ($)"])
 periyot = st.sidebar.select_slider("Grafik Geçmişi", options=["1mo", "3mo", "6mo", "1y", "2y", "5y"], value="1y")
 
-# --- CANLI TUTMAK İÇİN BUTON ---
 if st.sidebar.button("🔄 Verileri Şimdi Yenile"):
     st.cache_data.clear()
 
-# --- YATIRIM SİMÜLASYONU ---
 st.sidebar.markdown("---")
 st.sidebar.header("💰 Ne Olurdu?")
 yatirim_miktari = st.sidebar.number_input("Yatırım Tutarı (TL)", value=10000, step=1000)
@@ -71,12 +67,17 @@ def katilim_kontrol(hisse):
     elif hisse in katilim_yok: return "⛔ KATILIM ENDEKSİNE UYGUN DEĞİL", "red"
     else: return "ℹ️ LİSTEDE YOK / KONTROL EDİLMELİ", "neutral"
 
-# --- MATEMATİK FONKSİYONLARI ---
+# --- TEKNİK ANALİZ (GÜNCELLENDİ: WILDER'S SMOOTHING RSI) ---
 def hesapla_rsi(series, period=14):
     delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
+    gain = (delta.where(delta > 0, 0))
+    loss = (-delta.where(delta < 0, 0))
+    
+    # Wilder's Smoothing Yöntemi (Daha hassas)
+    avg_gain = gain.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    
+    rs = avg_gain / avg_loss
     return 100 - (100 / (1 + rs))
 
 def hesapla_sma(series, period): return series.rolling(window=period).mean()
@@ -93,37 +94,28 @@ def haber_skoru(baslik):
         if k in baslik: score -= 1
     return score
 
-# --- VERİ ÇEKME MOTORU (GÜNCELLENDİ: GRAM HESABI VE VERİ EŞLEME) ---
-@st.cache_data(ttl=60) # 60 saniyede bir veriyi bayatlatıp yenisini çeker (Canlı kalmasını sağlar)
+# --- VERİ ÇEKME MOTORU (GRAM HESABI DAHİL) ---
+@st.cache_data(ttl=60)
 def veri_getir(sembol, tip, zaman):
-    # Ana veriyi çek (Hisse veya ONS)
+    # Ana veriyi çek
     df = yf.Ticker(sembol).history(period=zaman)
     
-    # Veri boşsa hemen dön
-    if df.empty:
-        return df
+    if df.empty: return df
 
-    # --- ALTIN VE GÜMÜŞ ÖZEL HESAPLAMA (GRAM DÖNÜŞÜMÜ) ---
+    # --- ALTIN VE GÜMÜŞ ÖZEL HESAPLAMA ---
     if sembol in ["GC=F", "SI=F"]:
         if tip == "TL (₺)":
-            # Dolar kurunu çek
             usd_try = yf.Ticker("USDTRY=X").history(period=zaman)
+            # Endeksleri eşitle (Çok önemli, yoksa hesap kayar)
+            df = df.join(usd_try['Close'].rename("USD_Rate"), how='left')
+            df['USD_Rate'] = df['USD_Rate'].ffill() # Tatil günlerini doldur
             
-            # Zaman damgalarını eşitle (ÖNEMLİ: Grafiğin boş gelmemesi için)
-            # Sadece 'Close' fiyatını alıp ana tabloya ekliyoruz
-            df['USD_Rate'] = usd_try['Close']
-            
-            # Eksik günleri (tatiller vs) bir önceki günle doldur (Forward Fill)
-            df['USD_Rate'] = df['USD_Rate'].ffill()
-            
-            # Formül: (ONS Fiyatı * Dolar Kuru) / 31.1035
             oz_to_gram = 31.1034768
+            # (Ons Fiyatı * Dolar Kuru) / 31.10 = Gram TL
             for col in ['Open', 'High', 'Low', 'Close']:
                 df[col] = (df[col] * df['USD_Rate']) / oz_to_gram
                 
         elif tip == "Dolar ($)":
-            # Sadece ONS fiyatını 31.10'a bölüp Gram Dolar fiyatını bulabiliriz
-            # Ya da ONS olarak bırakabiliriz. Kullanıcı "Gram" istediği için bölüyoruz.
             oz_to_gram = 31.1034768
             for col in ['Open', 'High', 'Low', 'Close']:
                 df[col] = df[col] / oz_to_gram
@@ -131,26 +123,38 @@ def veri_getir(sembol, tip, zaman):
     # --- HİSSELER İÇİN DOLAR BAZLI HESAP ---
     elif tip == "Dolar ($)" and "IS" in sembol:
         usd_try = yf.Ticker("USDTRY=X").history(period=zaman)
-        df['USD_Rate'] = usd_try['Close']
+        df = df.join(usd_try['Close'].rename("USD_Rate"), how='left')
         df['USD_Rate'] = df['USD_Rate'].ffill()
         for col in ['Open', 'High', 'Low', 'Close']:
             df[col] = df[col] / df['USD_Rate']
             
     return df
 
-@st.cache_data(ttl=300) # Temel bilgiler 5 dakikada bir güncellense yeter
+# --- TEMEL BİLGİ (GÜNCELLENDİ: HIZLI MOD) ---
+@st.cache_data(ttl=300)
 def temel_bilgi_getir(sembol):
     try:
         if "IS" in sembol:
-            hisse_bilgi = yf.Ticker(sembol).info
-            fk = hisse_bilgi.get('trailingPE', None)
-            piyasa_deg = hisse_bilgi.get('marketCap', None)
+            ticker = yf.Ticker(sembol)
+            
+            # fast_info çok daha hızlıdır ve donmayı engeller
+            try:
+                piyasa_deg = ticker.fast_info['market_cap']
+            except:
+                piyasa_deg = None
+                
+            # F/K oranı fast_info'da olmayabilir, klasik info'yu deneriz ama hata verirse atlarız
+            try:
+                fk = ticker.info.get('trailingPE', None)
+            except:
+                fk = None
+                
             return fk, piyasa_deg
         return None, None
     except:
         return None, None
 
-# --- ANA SAYFA ---
+# --- ARAYÜZ ---
 tab1, tab2, tab3 = st.tabs(["📈 CANLI GRAFİK", "📰 HABER MERKEZİ", "📘 BİLGİ BANKASI"])
 
 with tab1:
@@ -160,11 +164,10 @@ with tab1:
         st.markdown(f'<div style="{renk_css} padding: 10px; border-radius: 5px; font-weight: bold; text-align: center; margin-bottom: 10px;">{durum_metni}</div>', unsafe_allow_html=True)
 
         try:
-            with st.spinner('Veriler Darphaneden Çekiliyor...'):
+            with st.spinner('Veriler İşleniyor...'):
                 df = veri_getir(secilen_kod, analiz_tipi, periyot)
             
             if not df.empty and len(df) > 1:
-                # --- METRİKLER ---
                 fk, mc = temel_bilgi_getir(secilen_kod)
                 c1, c2, c3, c4 = st.columns(4)
                 
@@ -173,12 +176,7 @@ with tab1:
                 degisim = ((son_fiyat - onceki_fiyat) / onceki_fiyat) * 100
                 simge = "$" if analiz_tipi == "Dolar ($)" else "₺"
                 
-                # Başlık Güncellemesi
-                varlik_adi = isim_sozlugu.get(secilen_kod, secilen_kod)
-                if secilen_kod in ["GC=F", "SI=F"]:
-                    ek_bilgi = "(Gram Fiyatı)"
-                else:
-                    ek_bilgi = ""
+                ek_bilgi = "(Gram Fiyatı)" if secilen_kod in ["GC=F", "SI=F"] else ""
 
                 c1.metric(f"Son Fiyat {ek_bilgi}", f"{son_fiyat:.2f} {simge}", f"%{degisim:.2f}")
                 
@@ -188,11 +186,10 @@ with tab1:
                 if mc: c3.metric("Piyasa Değeri", f"{(mc/1000000000):.1f} Mr {simge}")
                 else: c3.metric("Piyasa Değeri", "-")
                 
-                # Simülasyon
                 ilk_fiyat = df['Close'].iloc[0]
                 simule_kar = (yatirim_miktari / ilk_fiyat) * son_fiyat
                 fark_simule = simule_kar - yatirim_miktari
-                c4.metric("Simülasyon Sonucu", f"{simule_kar:.0f} {simge}", f"{fark_simule:.0f} {simge}")
+                c4.metric("Simülasyon", f"{simule_kar:.0f} {simge}", f"{fark_simule:.0f} {simge}")
                 st.divider()
 
                 # --- GRAFİK ---
@@ -201,15 +198,21 @@ with tab1:
                 df['RSI'] = hesapla_rsi(df['Close'], 14)
 
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, 
-                                    subplot_titles=(f'{varlik_adi} Fiyat Analizi', 'RSI'), row_width=[0.25, 0.75])
+                                    subplot_titles=(f'{isim_sozlugu.get(secilen_kod, secilen_kod)} Fiyat Analizi', 'RSI (Wilder)'), row_width=[0.25, 0.75])
                 
-                fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Fiyat', increasing_line_color='#00e676', decreasing_line_color='#ef4444'), row=1, col=1)
-                fig.add_trace(go.Scatter(x=df.index, y=df['EMA20'], line=dict(color='#fbbf24', width=3), name='EMA 20'), row=1, col=1)
-                fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], line=dict(color='#3b82f6', width=4), name='SMA 50'), row=1, col=1)
-                fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='#d946ef', width=3), name='RSI'), row=2, col=1)
+                # Mum Grafiği
+                fig.add_trace(go.Candlestick(
+                    x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], 
+                    name='Fiyat', 
+                    increasing_line_color='#26a69a', decreasing_line_color='#ef5350' # TradingView renkleri
+                ), row=1, col=1)
                 
-                fig.add_hline(y=70, line_dash="solid", line_color="#ef4444", row=2, col=1)
-                fig.add_hline(y=30, line_dash="solid", line_color="#00e676", row=2, col=1)
+                fig.add_trace(go.Scatter(x=df.index, y=df['EMA20'], line=dict(color='#fbbf24', width=2), name='EMA 20'), row=1, col=1)
+                fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], line=dict(color='#3b82f6', width=2), name='SMA 50'), row=1, col=1)
+                fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], line=dict(color='#d946ef', width=2), name='RSI'), row=2, col=1)
+                
+                fig.add_hline(y=70, line_dash="solid", line_color="#ef4444", row=2, col=1, annotation_text="Aşırı Alım")
+                fig.add_hline(y=30, line_dash="solid", line_color="#00e676", row=2, col=1, annotation_text="Aşırı Satım")
                 
                 fig.update_layout(height=700, template="plotly_dark", xaxis_rangeslider_visible=False, plot_bgcolor="#0e1117", paper_bgcolor="#0e1117", font=dict(color="white"))
                 st.plotly_chart(fig, use_container_width=True)
@@ -218,33 +221,31 @@ with tab1:
                 st.download_button("📥 Verileri İndir", data=csv, file_name=f'{secilen_kod}_veriler.csv', mime='text/csv')
 
             else:
-                st.warning("Veriler güncelleniyor veya piyasa kapalı olabilir. Lütfen 'Verileri Şimdi Yenile' butonuna basın.")
+                st.warning("Veriler güncelleniyor. Lütfen biraz bekleyin.")
         except Exception as e:
-            st.error(f"Bir hata oluştu: {e}")
+            st.error(f"Hata: {e}")
 
 with tab2:
-    st.subheader(f"📰 {isim_sozlugu.get(secilen_kod, secilen_kod)} Gündemi")
+    st.subheader("📰 Piyasadan Haberler")
     try:
         googlenews = GoogleNews(lang='tr', region='TR')
-        if secilen_kod == "GC=F": term = "Altın yorum gram altın"
-        elif secilen_kod == "SI=F": term = "Gümüş fiyatları yorum"
-        else: term = f"{secilen_kod.replace('.IS', '')} hisse"
+        term = "Altın yorum" if secilen_kod == "GC=F" else ("Gümüş yorum" if secilen_kod == "SI=F" else f"{secilen_kod.replace('.IS', '')} hisse")
         
         googlenews.search(term)
         haberler = googlenews.results()
         if haberler:
             col_a, col_b = st.columns(2)
-            for i, haber in enumerate(haberler[:10]):
+            for i, haber in enumerate(haberler[:8]):
                 skor = haber_skoru(haber['title'])
                 with (col_a if i % 2 == 0 else col_b):
                     if skor > 0: st.success(f"📈 {haber['title']}\n\n_{haber['date']}_")
                     elif skor < 0: st.error(f"📉 {haber['title']}\n\n_{haber['date']}_")
                     else: st.info(f"🗞️ {haber['title']}\n\n_{haber['date']}_")
         else:
-            st.warning("Güncel haber akışı yok.")
+            st.warning("Haber akışı bulunamadı.")
     except:
-        st.write("Haber servisine ulaşılamıyor.")
+        st.write("Haber servisine şu an ulaşılamıyor.")
 
 with tab3:
-    st.info("**Gram Altın Hesabı:** Uluslararası ONS Altın fiyatı, o anki Dolar/TL kuruyla çarpılır ve 31.10'a (1 Ons) bölünerek hesaplanır.")
-    st.info("**Canlı Veri:** Veriler Yahoo Finance üzerinden anlık çekilir. Piyasaların kapalı olduğu saatlerde son kapanış fiyatı görünür.")
+    st.info("**RSI (Göreceli Güç Endeksi):** Wilder yöntemi ile hesaplanmıştır. 70 üzeri 'aşırı alım' (satış riski), 30 altı 'aşırı satım' (alım fırsatı) olarak yorumlanabilir.")
+    st.info("**Gram Altın/Gümüş:** ONS fiyatı anlık Dolar/TL kuru ile çarpılarak hesaplanır. Veriler 15dk gecikmeli olabilir.")
