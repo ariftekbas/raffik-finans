@@ -11,7 +11,7 @@ import google.generativeai as genai
 # ==========================================
 # 🔑 AYARLAR VE API ANAHTARI
 # ==========================================
-# DÜZELTME YAPILDI: Anahtar tırnak içine alındı!
+# Arif Baba, buradaki anahtar senin anahtarın. Tırnaklar düzeltildi.
 GEMINI_API_KEY = "AIzaSyAohuPCw8DxngrgEavuiybzNCjRg3cS57Y"
 
 # Gemini Kurulumu
@@ -175,10 +175,12 @@ def gemini_piyasa_ozeti(basliklar_listesi, hisse):
     {basliklar_metni}
     """
     try:
+        # Generate content with error handling
         response = model.generate_content(prompt)
         return response.text.strip()
-  except Exception as e:
-        return f"⚠️ HATA OLUŞTU: {str(e)}"
+    except Exception as e:
+        # HATA YAKALAMA KISMI BURASI
+        return f"⚠️ YAPAY ZEKA HATASI: {str(e)}"
 
 # 4. Teknik İndikatörler
 def calculate_rsi(data, period=14):
@@ -359,7 +361,12 @@ with tab_haber:
         if AI_AKTIF:
             with st.spinner("Yapay zeka haberleri okuyup özetliyor..."):
                 ozet_metni = gemini_piyasa_ozeti(basliklar_listesi, secilen_ad)
-                st.info(f"📝 **AI PİYASA RAPORU:**\n\n{ozet_metni}")
+                
+                # Eğer hata mesajı dönerse (içinde 'HATA' geçerse) kırmızı göster
+                if "HATA" in ozet_metni:
+                    st.error(ozet_metni)
+                else:
+                    st.info(f"📝 **AI PİYASA RAPORU:**\n\n{ozet_metni}")
         else:
             st.warning("⚠️ AI Anahtarı girilmediği veya hatalı olduğu için otomatik özet yapılamıyor.")
 
@@ -379,4 +386,3 @@ with tab_bilgi:
             st.write(tik.info.get('longBusinessSummary', ''))
         else: st.info("Şirket verisi yok.")
     except: st.write("Bilgi alınamadı.")
-
