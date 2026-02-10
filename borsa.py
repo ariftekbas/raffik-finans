@@ -12,8 +12,8 @@ try:
 except ImportError:
     st_autorefresh = None
 
-# --- 1. SİTE AYARLARI ---
-st.set_page_config(page_title="Raffık Finans Pro", layout="wide", page_icon="🦅")
+# --- 1. SİTE AYARLARI (GÜNCELLENDİ: ARTEK FİNANS) ---
+st.set_page_config(page_title="Artek Finans", layout="wide", page_icon="🦅")
 
 if st_autorefresh:
     st_autorefresh(interval=60000, key="fiyat_yenileme")
@@ -48,13 +48,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- BAŞLIK ---
+# --- BAŞLIK (GÜNCELLENDİ: ARTEK FİNANS) ---
 col_logo, col_title = st.columns([1, 8])
 with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
-    st.title("Artek Finans")
-    st.caption(f"🔴 Veriler en fazla 15 dk gecikmeli | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
+    st.title("ARTEK FİNANS: BIST 100 PRO")
+    st.caption(f"🔴 Yapay Zeka Destekli Borsa Takip | Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')}")
 st.markdown("---")
 
 # --- LİSTE ---
@@ -127,9 +127,9 @@ analiz_tipi = st.sidebar.radio("Para Birimi", ["TL (₺)", "Dolar ($)"], horizon
 periyot = st.sidebar.select_slider("Grafik Geçmişi", options=["1mo", "3mo", "1y", "5y"], value="1y")
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🦅 Piyasa Özeti (BIST 100)")
+st.sidebar.markdown("### 🦅 Piyasa Özeti")
 
-# --- YENİ: ARAMA KUTUSU ---
+# ARAMA KUTUSU
 arama_metni = st.sidebar.text_input("🔍 Hisse Ara", placeholder="Örn: THY, ASELS, KOZA...")
 
 # Verileri Çek
@@ -140,12 +140,12 @@ def siralama_anahtari(kod):
     return ISIM_SOZLUGU.get(kod, kod.replace(".IS", ""))
 sirali_liste = sorted(HAM_LISTE, key=siralama_anahtari)
 
-# LİSTELEME DÖNGÜSÜ (Filtreli)
+# LİSTELEME DÖNGÜSÜ
 bulunan_sayisi = 0
 for kod in sirali_liste:
     ad = ISIM_SOZLUGU.get(kod, kod.replace(".IS", ""))
     
-    # ARAMA FİLTRESİ: Eğer arama metni ne kodda ne de isimde yoksa bu hisseyi atla
+    # ARAMA FİLTRESİ
     if arama_metni:
         if arama_metni.lower() not in ad.lower() and arama_metni.lower() not in kod.lower():
             continue
@@ -256,5 +256,3 @@ with tab_bilgi:
             st.write(info.get('longBusinessSummary', 'Açıklama bulunamadı.'))
         else: st.info("Emtia veya Döviz için şirket kartı bulunmaz.")
     except: st.write("Bilgi alınamadı.")
-
-
