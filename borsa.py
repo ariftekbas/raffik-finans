@@ -91,8 +91,12 @@ def haber_skoru(baslik):
     negatif = ["düşüş", "zarar", "satış", "ceza", "kriz", "endişe", "iptal", "gerileme", "iflas"]
     score = 0
     baslik = baslik.lower()
-    for k in pozitif: if k in baslik: score += 1
-    for k in negatif: if k in baslik: score -= 1
+    for k in pozitif:
+        if k in baslik:
+            score += 1
+    for k in negatif:
+        if k in baslik:
+            score -= 1
     return score
 
 # --- VERİ ÇEKME MOTORU (SAATLİK HESAPLAMA DESTEKLİ) ---
@@ -244,3 +248,4 @@ with tab2:
 with tab3:
     st.info("**Saatlik Veri Uyarısı:** Yahoo Finance kuralları gereği 15dk-60dk gibi veriler en fazla geriye dönük 60-730 gün için çekilebilir. Eğer grafik boş gelirse 'Grafik Geçmişi'ni '1mo' veya '3mo' yapın.")
     st.info("**Gram Hesaplaması:** Anlık ONS Altın fiyatı ile Anlık Dolar kuru çarpılarak hesaplanır. (Saatlik veride de bu çarpım her saat için ayrı ayrı yapılır).")
+
