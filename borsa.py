@@ -12,7 +12,7 @@ import google.generativeai as genai
 # 🔑 AYARLAR VE API ANAHTARI
 # ==========================================
 # Buraya Google AI Studio'dan aldığın anahtarı yapıştır:
-GEMINI_API_KEY = AIzaSyAohuPCw8DxngrgEavuiybzNCjRg3cS57Y
+GEMINI_API_KEY ="AIzaSyAohuPCw8DxngrgEavuiybzNCjRg3cS57Y"
 
 # Gemini Kurulumu
 try:
@@ -413,3 +413,4 @@ with tab_bilgi:
         else:
             st.info("Emtia veya Döviz için şirket kartı bulunmaz.")
     except: st.write("Bilgi alınamadı.")
+
