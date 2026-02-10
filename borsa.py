@@ -11,7 +11,6 @@ import google.generativeai as genai
 # ==========================================
 # 🔑 AYARLAR VE API ANAHTARI
 # ==========================================
-# Arif Baba, anahtarın burada hazır:
 GEMINI_API_KEY = "AIzaSyAohuPCw8DxngrgEavuiybzNCjRg3cS57Y"
 
 # Gemini Kurulumu
@@ -19,7 +18,7 @@ AI_AKTIF = False
 try:
     if GEMINI_API_KEY and "BURAYA" not in GEMINI_API_KEY:
         genai.configure(api_key=GEMINI_API_KEY)
-        # Sürüm güncellemesi (requirements.txt) yapıldıysa bu model uçar 🚀
+        # Requirements.txt guncellendigi icin bu model calisacaktir
         model = genai.GenerativeModel('gemini-1.5-flash')
         AI_AKTIF = True
 except:
