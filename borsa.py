@@ -5,9 +5,15 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from GoogleNews import GoogleNews
 import datetime
+# YENİ: Otomatik yenileme kütüphanesi
+from streamlit_autorefresh import st_autorefresh
 
 # --- 1. SİTE AYARLARI ---
-st.set_page_config(page_title="Raffık Finans v2.1", layout="wide", page_icon="🦅")
+st.set_page_config(page_title="Raffık Finans v2.2", layout="wide", page_icon="🦅")
+
+# --- OTOMATİK YENİLEME AYARI (YENİ) ---
+# Sayfayı her 60 saniyede (60000 milisaniye) bir otomatik yeniler
+count = st_autorefresh(interval=60000, limit=1000, key="fiyat_yenileme")
 
 st.markdown("""
 <style>
@@ -28,7 +34,7 @@ with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
     st.title("RAFFIK FİNANS: CANLI TAKİP")
-    st.caption("🔴 Saatlik Veri Modu & Nan Savar Aktif")
+    st.caption(f"🔴 Otomatik Yenileme Aktif (Son Güncelleme: {datetime.datetime.now().strftime('%H:%M:%S')})")
 st.markdown("---")
 
 # --- YAN MENÜ ---
@@ -50,14 +56,12 @@ isim_sozlugu = {"GC=F": "🟡 GRAM ALTIN", "SI=F": "⚪ GRAM GÜMÜŞ"}
 secilen_kod = st.sidebar.selectbox("Varlık Seçin", varlik_listesi, format_func=lambda x: isim_sozlugu.get(x, x))
 analiz_tipi = st.sidebar.radio("Para Birimi", ["TL (₺)", "Dolar ($)"])
 
-# YENİ: Zaman ve Aralık Ayarı
 st.sidebar.markdown("---")
 st.sidebar.write("⏱️ **Zaman Ayarları**")
 periyot = st.sidebar.select_slider("Grafik Geçmişi", options=["1mo", "3mo", "6mo", "1y", "2y", "5y"], value="1mo")
-# Saatlik veri seçeneği eklendi
 aralik = st.sidebar.select_slider("Mum Aralığı (Hassasiyet)", options=["15m", "30m", "60m", "90m", "1d", "1wk"], value="60m")
 
-if st.sidebar.button("🔄 Verileri Şimdi Yenile"):
+if st.sidebar.button("🔄 Manuel Yenile"):
     st.cache_data.clear()
 
 st.sidebar.markdown("---")
@@ -73,7 +77,7 @@ def katilim_kontrol(hisse):
     elif hisse in katilim_yok: return "⛔ KATILIM ENDEKSİNE UYGUN DEĞİL", "red"
     else: return "ℹ️ LİSTEDE YOK / KONTROL EDİLMELİ", "neutral"
 
-# --- TEKNİK ANALİZ (Wilder's RSI) ---
+# --- TEKNİK ANALİZ ---
 def hesapla_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0))
@@ -86,6 +90,7 @@ def hesapla_rsi(series, period=14):
 def hesapla_sma(series, period): return series.rolling(window=period).mean()
 def hesapla_ema(series, period): return series.ewm(span=period, adjust=False).mean()
 
+# HATA DÜZELTİLDİ: Yazım yanlışı giderildi
 def haber_skoru(baslik):
     pozitif = ["rekor", "kar", "artış", "büyüme", "onay", "yükseliş", "temettü", "anlaşma", "dev", "imza"]
     negatif = ["düşüş", "zarar", "satış", "ceza", "kriz", "endişe", "iptal", "gerileme", "iflas"]
@@ -99,35 +104,25 @@ def haber_skoru(baslik):
             score -= 1
     return score
 
-# --- VERİ ÇEKME MOTORU (SAATLİK HESAPLAMA DESTEKLİ) ---
+# --- VERİ ÇEKME MOTORU ---
 @st.cache_data(ttl=60)
 def veri_getir(sembol, tip, zaman, mum_araligi):
-    # Ana veriyi çek (interval parametresi eklendi)
     try:
         df = yf.Ticker(sembol).history(period=zaman, interval=mum_araligi)
     except:
-        return pd.DataFrame() # Hata olursa boş dön
+        return pd.DataFrame()
 
     if df.empty: return df
-
-    # 🛠️ Zaman dilimi temizliği (UTC sorununu çözer)
     df.index = df.index.tz_localize(None)
 
-    # --- ALTIN VE GÜMÜŞ ÖZEL HESAPLAMA ---
     if sembol in ["GC=F", "SI=F"]:
         if tip == "TL (₺)":
-            # Dolar kurunu da aynı aralıkta (örn: saatlik) çekiyoruz
             try:
                 usd_try = yf.Ticker("USDTRY=X").history(period=zaman, interval=mum_araligi)
                 usd_try.index = usd_try.index.tz_localize(None)
-                
-                # Verileri birleştir
                 df = df.join(usd_try['Close'].rename("USD_Rate"), how='left')
-                
-                # Boşlukları doldur (Forward Fill + Backward Fill)
                 df['USD_Rate'] = df['USD_Rate'].ffill().bfill()
                 
-                # Eğer Dolar verisi o aralıkta hiç yoksa son fiyatı al
                 if df['USD_Rate'].isnull().all():
                      son_kur = yf.Ticker("USDTRY=X").fast_info['last_price']
                      df['USD_Rate'] = son_kur
@@ -136,14 +131,12 @@ def veri_getir(sembol, tip, zaman, mum_araligi):
                 for col in ['Open', 'High', 'Low', 'Close']:
                     df[col] = (df[col] * df['USD_Rate']) / oz_to_gram
             except Exception as e:
-                st.error(f"Dolar kuru alınırken hata: {e}")
-                
+                st.error(f"Dolar kuru hatası: {e}")
         elif tip == "Dolar ($)":
             oz_to_gram = 31.1034768
             for col in ['Open', 'High', 'Low', 'Close']:
                 df[col] = df[col] / oz_to_gram
 
-    # --- HİSSELER İÇİN DOLAR BAZLI HESAP ---
     elif tip == "Dolar ($)" and "IS" in sembol:
         usd_try = yf.Ticker("USDTRY=X").history(period=zaman, interval=mum_araligi)
         usd_try.index = usd_try.index.tz_localize(None)
@@ -174,7 +167,6 @@ with tab1:
 
         try:
             with st.spinner('Veriler İşleniyor...'):
-                # Artık "aralik" değişkenini de gönderiyoruz
                 df = veri_getir(secilen_kod, analiz_tipi, periyot, aralik)
             
             if not df.empty and len(df) > 1:
@@ -197,7 +189,6 @@ with tab1:
                 c4.metric("Simülasyon", f"{simule_kar:.0f} {simge}", f"{fark_simule:.0f} {simge}")
                 st.divider()
 
-                # --- GRAFİK ---
                 df['SMA50'] = hesapla_sma(df['Close'], 50)
                 df['EMA20'] = hesapla_ema(df['Close'], 20)
                 df['RSI'] = hesapla_rsi(df['Close'], 14)
@@ -223,7 +214,7 @@ with tab1:
                 csv = df.to_csv().encode('utf-8')
                 st.download_button("📥 İndir", data=csv, file_name=f'{secilen_kod}.csv', mime='text/csv')
             else:
-                st.warning("Bu tarih aralığı için yeterli veri yok veya piyasa kapalı. Lütfen 'Mum Aralığı'nı veya 'Geçmişi' değiştirin.")
+                st.warning("Veri alınamadı veya piyasa kapalı.")
         except Exception as e:
             st.error(f"Hata: {e}")
 
@@ -246,6 +237,5 @@ with tab2:
     except: st.write("Haber servisi meşgul.")
 
 with tab3:
-    st.info("**Saatlik Veri Uyarısı:** Yahoo Finance kuralları gereği 15dk-60dk gibi veriler en fazla geriye dönük 60-730 gün için çekilebilir. Eğer grafik boş gelirse 'Grafik Geçmişi'ni '1mo' veya '3mo' yapın.")
-    st.info("**Gram Hesaplaması:** Anlık ONS Altın fiyatı ile Anlık Dolar kuru çarpılarak hesaplanır. (Saatlik veride de bu çarpım her saat için ayrı ayrı yapılır).")
-
+    st.info("**Otomatik Yenileme:** Sayfa her 60 saniyede bir kendini günceller. Başlığın altında son güncelleme saatini görebilirsiniz.")
+    st.info("**Not:** Veriler 15dk gecikmeli gelebilir (Borsa kuralları).")
