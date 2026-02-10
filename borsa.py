@@ -56,7 +56,7 @@ with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
     st.title("Artek Finans")
-    st.title("BİST 100 Hisseleri)
+    
     durum_ikonu = "🟢" if borsa_acik_mi else "🔴"
     # DÜRÜSTLÜK GÜNCELLEMESİ: Gecikme uyarısı eklendi
     st.caption(f"{durum_ikonu} Piyasa Durumu | ⚠️ Veriler BIST kuralları gereği 15dk gecikmelidir.")
@@ -261,3 +261,4 @@ with tab_haber:
 
 with tab_bilgi:
      st.write("Şirket kartı bilgileri...")
+
