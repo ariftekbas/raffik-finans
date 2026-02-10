@@ -1,11 +1,11 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np # Hesaplama için eklendi
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from GoogleNews import GoogleNews
 import datetime
+import requests
+import xml.etree.ElementTree as ET # RSS okumak için standart kütüphane
 
 # Otomatik yenileme
 try:
@@ -24,7 +24,7 @@ tr_saat = simdi_tr()
 saat = tr_saat.hour
 dakika = tr_saat.minute
 
-# Borsa 09:55 - 18:10 arası açık varsayalım (Geniş aralık)
+# Borsa 09:55 - 18:10 arası açık varsayalım
 borsa_acik_mi = False
 if (9 <= saat < 18) or (saat == 18 and dakika <= 30):
     borsa_acik_mi = True
@@ -125,6 +125,32 @@ def liste_ozeti_getir(semboller):
         return ozet_sozlugu
     except: return {}
 
+# --- YENİ RSS HABER MOTORU (DAHA SAĞLAM) ---
+def google_rss_haberleri(arama_terimi):
+    try:
+        # Google Haberler RSS URL'si
+        url = f"https://news.google.com/rss/search?q={arama_terimi}&hl=tr&gl=TR&ceid=TR:tr"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            root = ET.fromstring(response.content)
+            haberler = []
+            # İlk 10 haberi al
+            for item in root.findall('.//item')[:10]:
+                haber = {
+                    'title': item.find('title').text,
+                    'link': item.find('link').text,
+                    'pubDate': item.find('pubDate').text,
+                    'desc': item.find('description').text if item.find('description') is not None else "Özet yok."
+                }
+                haberler.append(haber)
+            return haberler
+        else:
+            return []
+    except:
+        return []
+
 def duygu_analizi(metin):
     metin = metin.lower()
     pozitif = ["rekor", "kar", "artış", "büyüme", "onay", "yükseliş", "temettü", "anlaşma", "dev", "imza", "tavan", "olumlu", "hedef", "güçlü", "al", "kazanç", "zirve"]
@@ -156,8 +182,11 @@ sirali_liste = sorted(HAM_LISTE, key=siralama_anahtari)
 bulunan_sayisi = 0
 for kod in sirali_liste:
     ad = ISIM_SOZLUGU.get(kod, kod.replace(".IS", ""))
+    
     if arama_metni:
-        if arama_metni.lower() not in ad.lower() and arama_metni.lower() not in kod.lower(): continue
+        if arama_metni.lower() not in ad.lower() and arama_metni.lower() not in kod.lower():
+            continue
+
     bulunan_sayisi += 1
     yuzde = degisimler.get(kod, 0.0) * 100
     
@@ -166,6 +195,7 @@ for kod in sirali_liste:
     else: badge = "badge-flat"; icon = "-"; yuzde_txt = "%0.00"
     
     aktif_mi = "🟡" if st.session_state.secilen_kod == kod else ""
+    
     col_txt, col_btn = st.sidebar.columns([0.8, 0.2])
     with col_txt:
         st.markdown(f"""<div style="display:flex; justify-content:space-between; align-items:center;"><span class="stock-name">{aktif_mi} {ad}</span><span class="badge {badge}">{icon} {yuzde_txt}</span></div>""", unsafe_allow_html=True)
@@ -174,7 +204,8 @@ for kod in sirali_liste:
             st.session_state.secilen_kod = kod
             st.rerun()
 
-if bulunan_sayisi == 0: st.sidebar.warning("Hisse bulunamadı.")
+if bulunan_sayisi == 0:
+    st.sidebar.warning("Hisse bulunamadı.")
 
 # --- SAĞ TARAF ---
 secilen_ad = ISIM_SOZLUGU.get(st.session_state.secilen_kod, st.session_state.secilen_kod.replace(".IS", ""))
@@ -195,7 +226,6 @@ with col_text_header:
 
 tab_grafik, tab_haber, tab_bilgi = st.tabs(["📈 CANLI GRAFİK", "🗞️ HABER MERKEZİ (AI)", "📘 ŞİRKET KARTI"])
 
-# --- 1. GRAFİK VE DERİNLİK SEKME ---
 with tab_grafik:
     @st.cache_data(ttl=60)
     def detay_veri(sembol, tip, zaman):
@@ -226,7 +256,6 @@ with tab_grafik:
         degisim_val = ((son - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
         simge = "₺" if analiz_tipi == "TL (₺)" else "$"
         
-        # SMA Ekle
         df['SMA20'] = df['Close'].rolling(window=20).mean()
 
         c1, c2, c3 = st.columns(3)
@@ -234,7 +263,6 @@ with tab_grafik:
         c2.metric("En Yüksek", f"{df['High'].max():.2f} {simge}")
         c3.metric("En Düşük", f"{df['Low'].min():.2f} {simge}")
         
-        # Grafik
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_width=[0.2, 0.7], vertical_spacing=0.05)
         fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name="Fiyat"), row=1, col=1)
         fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], line=dict(color='#fbbf24', width=1.5), name="SMA 20"), row=1, col=1)
@@ -242,17 +270,12 @@ with tab_grafik:
         fig.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=30, b=10))
         st.plotly_chart(fig, use_container_width=True)
 
-        # --- YENİ: DERİNLİK (VOLUME PROFILE) SİMÜLASYONU ---
         st.markdown("### 📊 Derinlik ve Alıcı/Satıcı Dengesi (Tahmini)")
-        
         @st.cache_data(ttl=60)
         def hesapla_derinlik(sembol):
             try:
-                # Günlük dakika verisini çek (Son 1 gün)
                 df_intraday = yf.download(sembol, period="1d", interval="1m", progress=False)
                 if df_intraday.empty: return 0, 0
-                
-                # Alış/Satış Ayrıştırma (Basit Heuristik: Kapanış > Açılış ise Alış, değilse Satış)
                 buy_vol = df_intraday.loc[df_intraday['Close'] >= df_intraday['Open'], 'Volume'].sum()
                 sell_vol = df_intraday.loc[df_intraday['Close'] < df_intraday['Open'], 'Volume'].sum()
                 return buy_vol, sell_vol
@@ -264,40 +287,32 @@ with tab_grafik:
             toplam = alis_lot + satis_lot
             alis_yuzde = (alis_lot / toplam) * 100
             satis_yuzde = (satis_lot / toplam) * 100
-            
             d1, d2 = st.columns(2)
             d1.metric("Alıcı Ağırlıklı Lot", f"{int(alis_lot):,}", f"%{alis_yuzde:.1f}")
             d2.metric("Satıcı Ağırlıklı Lot", f"{int(satis_lot):,}", f"-%{satis_yuzde:.1f}", delta_color="inverse")
-            
-            # Görsel Çubuk
             st.markdown(f"""
             <div class="depth-container">
                 <div class="depth-buy" style="width: {alis_yuzde}%;">ALIŞ %{alis_yuzde:.0f}</div>
                 <div class="depth-sell" style="width: {satis_yuzde}%;">SATIŞ %{satis_yuzde:.0f}</div>
             </div>
-            <div style='text-align:center; font-size:11px; color:#9ca3af; margin-top:5px;'>
-                *Not: Gerçek derinlik (Level 2) verisi ücretli olduğu için, bu veriler fiyat hareketlerine göre hesaplanan tahmini hacim dağılımıdır.
-            </div>
             """, unsafe_allow_html=True)
-        else:
-            st.info("Bu seans için henüz yeterli derinlik/hacim verisi oluşmadı.")
-
+        else: st.info("Bu seans için henüz yeterli derinlik/hacim verisi oluşmadı.")
     else: st.error("Veri alınamadı.")
 
 with tab_haber:
     st.subheader(f"🧠 Yapay Zeka Haber Analizi: {secilen_ad}")
+    st.caption("Detaylar için başlıklara tıklayın 👇")
     with st.spinner("Haberler analiz ediliyor..."):
         try:
-            googlenews = GoogleNews(lang='tr', region='TR')
-            arama_terimi = f"{secilen_ad} hisse yorum" if "GRAM" not in secilen_ad else f"{secilen_ad} yorum"
-            googlenews.search(arama_terimi)
-            haberler = googlenews.results()
+            # RSS üzerinden haber çek (Daha güvenli)
+            arama_terimi = f"{secilen_ad} hisse" if "GRAM" not in secilen_ad else f"{secilen_ad}"
+            haberler = google_rss_haberleri(arama_terimi)
+            
             if haberler:
-                for haber in haberler[:10]:
+                for haber in haberler:
                     baslik = haber['title']
-                    tarih = haber['date']
+                    tarih = haber['pubDate']
                     link = haber['link']
-                    ozet = haber.get('desc', 'Özet bilgi bulunamadı.')
                     puan = duygu_analizi(baslik)
                     if puan > 0: emoji = "🟢"; msj = "Pozitif"; tip = st.success
                     elif puan < 0: emoji = "🔴"; msj = "Negatif"; tip = st.error
@@ -305,7 +320,6 @@ with tab_haber:
                     with st.expander(f"{emoji} {baslik}"):
                         tip(f"**AI Analizi:** {msj}")
                         st.write(f"📅 **Tarih:** {tarih}")
-                        st.write(f"📝 **Özet:** {ozet}")
                         st.link_button("🔗 Habere Git", link)
             else: st.warning("Güncel haber bulunamadı.")
         except: st.error("Haber servisi hatası.")
