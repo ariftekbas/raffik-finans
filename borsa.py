@@ -96,20 +96,38 @@ def haber_skoru(baslik):
 
 # --- VERİ ÇEKME MOTORU (GRAM HESABI DAHİL) ---
 @st.cache_data(ttl=60)
+# --- VERİ ÇEKME MOTORU (GÜNCELLENDİ: NAN SAVAR MOD) ---
+@st.cache_data(ttl=60)
 def veri_getir(sembol, tip, zaman):
     # Ana veriyi çek
     df = yf.Ticker(sembol).history(period=zaman)
-    
     if df.empty: return df
+
+    # 🛠️ KRİTİK DÜZELTME: Zaman dilimi bilgisini temizle (UTC vs Local sorununu çözer)
+    df.index = df.index.tz_localize(None)
 
     # --- ALTIN VE GÜMÜŞ ÖZEL HESAPLAMA ---
     if sembol in ["GC=F", "SI=F"]:
         if tip == "TL (₺)":
             usd_try = yf.Ticker("USDTRY=X").history(period=zaman)
-            # Endeksleri eşitle (Çok önemli, yoksa hesap kayar)
-            df = df.join(usd_try['Close'].rename("USD_Rate"), how='left')
-            df['USD_Rate'] = df['USD_Rate'].ffill() # Tatil günlerini doldur
             
+            # Dolar verisinin de zaman dilimini temizle
+            usd_try.index = usd_try.index.tz_localize(None)
+            
+            # Verileri tarihe göre birleştir
+            df = df.join(usd_try['Close'].rename("USD_Rate"), how='left')
+            
+            # Eksik günleri (Haftasonu/Tatil farkı) doldur
+            df['USD_Rate'] = df['USD_Rate'].ffill().bfill()
+            
+            # Eğer hala boşluk varsa (Acil Durum), son güncel kuru her yere yaz
+            if df['USD_Rate'].isnull().all():
+                try:
+                    son_kur = yf.Ticker("USDTRY=X").fast_info['last_price']
+                    df['USD_Rate'] = son_kur
+                except:
+                    df['USD_Rate'] = 35.0 # En kötü ihtimalle varsayılan değer (Hata vermesin diye)
+
             oz_to_gram = 31.1034768
             # (Ons Fiyatı * Dolar Kuru) / 31.10 = Gram TL
             for col in ['Open', 'High', 'Low', 'Close']:
@@ -123,8 +141,11 @@ def veri_getir(sembol, tip, zaman):
     # --- HİSSELER İÇİN DOLAR BAZLI HESAP ---
     elif tip == "Dolar ($)" and "IS" in sembol:
         usd_try = yf.Ticker("USDTRY=X").history(period=zaman)
+        usd_try.index = usd_try.index.tz_localize(None) # Zaman düzeltme
+        
         df = df.join(usd_try['Close'].rename("USD_Rate"), how='left')
-        df['USD_Rate'] = df['USD_Rate'].ffill()
+        df['USD_Rate'] = df['USD_Rate'].ffill().bfill()
+        
         for col in ['Open', 'High', 'Low', 'Close']:
             df[col] = df[col] / df['USD_Rate']
             
@@ -249,3 +270,4 @@ with tab2:
 with tab3:
     st.info("**RSI (Göreceli Güç Endeksi):** Wilder yöntemi ile hesaplanmıştır. 70 üzeri 'aşırı alım' (satış riski), 30 altı 'aşırı satım' (alım fırsatı) olarak yorumlanabilir.")
     st.info("**Gram Altın/Gümüş:** ONS fiyatı anlık Dolar/TL kuru ile çarpılarak hesaplanır. Veriler 15dk gecikmeli olabilir.")
+
