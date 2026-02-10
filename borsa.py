@@ -14,7 +14,7 @@ except ImportError:
     st_autorefresh = None
 
 # --- 1. SİTE AYARLARI ---
-st.set_page_config(page_title="Artek Finans Pro", layout="wide", page_icon="🦅")
+st.set_page_config(page_title="Artek Finans ", layout="wide", page_icon="🦅")
 
 # --- ZAMAN VE OTOMATİK YENİLEME ---
 def simdi_tr():
@@ -55,7 +55,8 @@ col_logo, col_title = st.columns([1, 8])
 with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
-    st.title("ARTEK FİNANS: BIST 100 PRO")
+    st.title("Artek Finans 
+    Bist 100")
     durum_ikonu = "🟢" if borsa_acik_mi else "🔴"
     # DÜRÜSTLÜK GÜNCELLEMESİ: Gecikme uyarısı eklendi
     st.caption(f"{durum_ikonu} Piyasa Durumu | ⚠️ Veriler BIST kuralları gereği 15dk gecikmelidir.")
@@ -260,3 +261,4 @@ with tab_haber:
 
 with tab_bilgi:
      st.write("Şirket kartı bilgileri...")
+
