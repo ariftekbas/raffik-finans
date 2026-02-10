@@ -11,7 +11,7 @@ import google.generativeai as genai
 # ==========================================
 # 🔑 AYARLAR VE API ANAHTARI
 # ==========================================
-# 🚨 BURAYA KENDİ API ANAHTARINI YAPIŞTIR:
+# DÜZELTME YAPILDI: Anahtar tırnak içine alındı!
 GEMINI_API_KEY = "AIzaSyAohuPCw8DxngrgEavuiybzNCjRg3cS57Y"
 
 # Gemini Kurulumu
@@ -32,7 +32,7 @@ except ImportError:
 # ==========================================
 # ⚙️ SİTE YAPILANDIRMASI
 # ==========================================
-st.set_page_config(page_title="Artek Finans", layout="wide", page_icon="🦅")
+st.set_page_config(page_title="Artek Finans Pro", layout="wide", page_icon="🦅")
 
 # CSS Tasarımı
 st.markdown("""
@@ -48,7 +48,7 @@ st.markdown("""
     
     div.stButton > button { padding: 0px 5px; min-height: 30px; height: 30px; line-height: 1; border: 1px solid #4b5563; }
     
-    /* Hacim Barı */
+    /* Derinlik Çubuğu */
     .depth-container { width: 100%; background-color: #374151; border-radius: 5px; height: 25px; display: flex; overflow: hidden; margin-top: 5px; }
     .depth-buy { background-color: #00c853; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: black; }
     .depth-sell { background-color: #d50000; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; color: white; }
@@ -66,7 +66,7 @@ def simdi_tr():
 tr_saat = simdi_tr()
 borsa_acik_mi = False
 
-# Hafta içi ve 09:00 - 18:30 arası açık
+# Hafta içi ve 09:00 - 18:30 arası açık kabul edelim
 if tr_saat.weekday() < 5: 
     if (9 <= tr_saat.hour < 18) or (tr_saat.hour == 18 and tr_saat.minute <= 30):
         borsa_acik_mi = True
@@ -74,7 +74,7 @@ if tr_saat.weekday() < 5:
             st_autorefresh(interval=60000, key="fiyat_yenileme")
 
 # ==========================================
-# 💾 HAFIZA
+# 💾 HAFIZA YÖNETİMİ
 # ==========================================
 if 'secilen_kod' not in st.session_state:
     st.session_state.secilen_kod = "GC=F"
@@ -82,7 +82,7 @@ if 'favoriler' not in st.session_state:
     st.session_state.favoriler = []
 
 # ==========================================
-# 📊 LİSTE
+# 📊 VERİ LİSTELERİ
 # ==========================================
 HAM_LISTE = [
     "GC=F", "SI=F", "USDTRY=X",
@@ -102,19 +102,27 @@ HAM_LISTE = [
 ISIM_SOZLUGU = {
     "GC=F": "GRAM ALTIN", "SI=F": "GRAM GÜMÜŞ", "USDTRY=X": "DOLAR/TL",
     "THYAO.IS": "THY", "ASELS.IS": "ASELSAN", "BIMAS.IS": "BIM", "EREGL.IS": "EREGLI", "TUPRS.IS": "TUPRAS",
-    "AKBNK.IS": "AKBANK", "GARAN.IS": "GARANTI", "YKBNK.IS": "YAPI KREDI", "ISCTR.IS": "IS BANKASI", "SAHOL.IS": "SABANCI HOL."
+    "AKBNK.IS": "AKBANK", "GARAN.IS": "GARANTI", "YKBNK.IS": "YAPI KREDI", "ISCTR.IS": "IS BANKASI", "SAHOL.IS": "SABANCI HOL.",
+    "FROTO.IS": "FORD OTO", "TOASO.IS": "TOFAS", "KCHOL.IS": "KOC HOLDING", "SASA.IS": "SASA POLY.", "HEKTS.IS": "HEKTAS",
+    "SISE.IS": "SISECAM", "PETKM.IS": "PETKIM", "PGSUS.IS": "PEGASUS", "ASTOR.IS": "ASTOR ENERJI", "KONTR.IS": "KONTROLMATIK",
+    "ENJSA.IS": "ENERJISA", "ALARK.IS": "ALARKO", "ODAS.IS": "ODAS ELEK.", "KOZAL.IS": "KOZA ALTIN", "KRDMD.IS": "KARDEMIR D",
+    "ARCLK.IS": "ARCELIK", "VESTL.IS": "VESTEL", "EUPWR.IS": "EUROPOWER", "CWENE.IS": "CW ENERJI", "SMRTG.IS": "SMART GUNES",
+    "MGROS.IS": "MIGROS", "TCELL.IS": "TURKCELL", "TTKOM.IS": "TURK TELEKOM", "EKGYO.IS": "EMLAK KONUT", "OYAKC.IS": "OYAK CIMENTO",
+    "GUBRF.IS": "GUBRE FAB.", "DOHOL.IS": "DOGAN HOLDING", "SOKM.IS": "SOK MARKET", "ULKER.IS": "ULKER", "AEFES.IS": "ANADOLU EFES"
 }
 
 # ==========================================
 # 🛠️ FONKSİYONLAR
 # ==========================================
 
+# 1. Toplu Liste Verisi (Yan Menü İçin)
 @st.cache_data(ttl=60)
 def liste_ozeti_getir(semboller):
     try:
         string_list = " ".join(semboller)
         data = yf.download(string_list, period="5d", group_by='ticker', progress=False)
         ozet_sozlugu = {}
+        # Dolar değişimi (Gram hesapları için)
         try:
             usd_df = data["USDTRY=X"]['Close'].dropna()
             usd_change = ((usd_df.iloc[-1] - usd_df.iloc[-2]) / usd_df.iloc[-2]) if len(usd_df) > 1 else 0
@@ -133,6 +141,7 @@ def liste_ozeti_getir(semboller):
         return ozet_sozlugu
     except: return {}
 
+# 2. RSS Haber Çekme (Google News XML)
 def google_rss_haberleri(arama_terimi):
     try:
         url = f"https://news.google.com/rss/search?q={arama_terimi}&hl=tr&gl=TR&ceid=TR:tr"
@@ -150,7 +159,7 @@ def google_rss_haberleri(arama_terimi):
         return []
     except: return []
 
-# YENİ AI FONKSİYONU: TOPLU ANALİZ
+# 3. YENİ AI FONKSİYONU: TOPLU ANALİZ
 def gemini_piyasa_ozeti(basliklar_listesi, hisse):
     if not AI_AKTIF:
         return "Yapay zeka anahtarı girilmediği için analiz yapılamıyor."
@@ -158,9 +167,9 @@ def gemini_piyasa_ozeti(basliklar_listesi, hisse):
     basliklar_metni = "\n".join([f"- {b}" for b in basliklar_listesi])
     
     prompt = f"""
-    Sen kıdemli bir borsa analistisin. Aşağıda '{hisse}' hissesi ile ilgili son 5 haber başlığı var.
-    Bu başlıkları bütünsel olarak değerlendir ve piyasanın bu hisseye bakışını TEK BİR PARAGRAFTA özetle.
-    Haberler olumlu mu, olumsuz mu yoksa nötr mü? Yatırımcı neye dikkat etmeli?
+    Sen kıdemli bir borsa analistisin. Aşağıda '{hisse}' hissesi ile ilgili son haber başlıkları var.
+    Bu başlıkları bütünsel olarak değerlendir ve piyasanın bu hisseye bakışını TEK BİR PARAGRAFTA, samimi bir dille özetle.
+    Haberler olumlu mu, olumsuz mu? Yatırımcı neye dikkat etmeli?
     
     Haberler:
     {basliklar_metni}
@@ -169,8 +178,9 @@ def gemini_piyasa_ozeti(basliklar_listesi, hisse):
         response = model.generate_content(prompt)
         return response.text.strip()
     except:
-        return "Yapay zeka şu an yanıt veremiyor."
+        return "Yapay zeka şu an yanıt veremiyor (Bağlantı veya Kota Sorunu)."
 
+# 4. Teknik İndikatörler
 def calculate_rsi(data, period=14):
     delta = data.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -185,7 +195,7 @@ col_logo, col_title = st.columns([1, 8])
 with col_logo:
     st.image("https://cdn-icons-png.flaticon.com/512/3310/3310748.png", width=70)
 with col_title:
-    st.title("Artek Finans")
+    st.title("Artek Finans: Pro")
     durum_ikonu = "🟢" if borsa_acik_mi else "🔴"
     st.caption(f"{durum_ikonu} Piyasa Durumu | ⚠️ Veriler BIST kuralları gereği 15dk gecikmelidir.")
 st.markdown("---")
@@ -257,6 +267,7 @@ with col_hd_2:
 
 tab_grafik, tab_haber, tab_bilgi = st.tabs(["📈 TEKNİK ANALİZ", "🗞️ PİYASA ÖZETİ (AI)", "📘 ŞİRKET KARTI"])
 
+# --- TAB 1: TEKNİK ---
 with tab_grafik:
     @st.cache_data(ttl=60)
     def detay_veri(sembol, tip, zaman):
@@ -350,7 +361,7 @@ with tab_haber:
                 ozet_metni = gemini_piyasa_ozeti(basliklar_listesi, secilen_ad)
                 st.info(f"📝 **AI PİYASA RAPORU:**\n\n{ozet_metni}")
         else:
-            st.warning("⚠️ AI Anahtarı girilmediği için otomatik özet yapılamıyor.")
+            st.warning("⚠️ AI Anahtarı girilmediği veya hatalı olduğu için otomatik özet yapılamıyor.")
 
         # 3. Haber Kaynaklarını Listele
         st.markdown("---")
