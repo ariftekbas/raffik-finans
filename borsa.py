@@ -11,7 +11,7 @@ import google.generativeai as genai
 # ==========================================
 # 🔑 AYARLAR VE API ANAHTARI
 # ==========================================
-# 🚨 Arif Baba, API anahtarını tırnak içinde buraya yaz:
+# Arif Baba, anahtarın burada hazır:
 GEMINI_API_KEY = "AIzaSyAohuPCw8DxngrgEavuiybzNCjRg3cS57Y"
 
 # Gemini Kurulumu
@@ -19,8 +19,8 @@ AI_AKTIF = False
 try:
     if GEMINI_API_KEY and "BURAYA" not in GEMINI_API_KEY:
         genai.configure(api_key=GEMINI_API_KEY)
-        # DÜZELTME: 'gemini-1.5-flash' yerine her yerde çalışan 'gemini-pro' yapıldı.
-        model = genai.GenerativeModel('gemini-pro')
+        # Sürüm güncellemesi (requirements.txt) yapıldıysa bu model uçar 🚀
+        model = genai.GenerativeModel('gemini-1.5-flash')
         AI_AKTIF = True
 except:
     AI_AKTIF = False
@@ -160,7 +160,7 @@ def google_rss_haberleri(arama_terimi):
         return []
     except: return []
 
-# 3. AI FONKSİYONU: TOPLU ANALİZ (Hata Yakalamalı)
+# 3. YENİ AI FONKSİYONU: TOPLU ANALİZ (Hata Yakalamalı)
 def gemini_piyasa_ozeti(basliklar_listesi, hisse):
     if not AI_AKTIF:
         return "Yapay zeka anahtarı girilmediği için analiz yapılamıyor."
@@ -181,7 +181,7 @@ def gemini_piyasa_ozeti(basliklar_listesi, hisse):
         return response.text.strip()
     except Exception as e:
         # HATA YAKALAMA KISMI
-        return f"⚠️ YAPAY ZEKA HATASI: {str(e)}"
+        return f"⚠️ YAPAY ZEKA HATASI: {str(e)}\n\n(Not: Lütfen requirements.txt dosyasını güncelleyip uygulamayı Reboot edin!)"
 
 # 4. Teknik İndikatörler
 def calculate_rsi(data, period=14):
