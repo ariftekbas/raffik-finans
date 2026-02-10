@@ -177,8 +177,8 @@ def gemini_piyasa_ozeti(basliklar_listesi, hisse):
     try:
         response = model.generate_content(prompt)
         return response.text.strip()
-    except:
-        return "Yapay zeka şu an yanıt veremiyor (Bağlantı veya Kota Sorunu)."
+  except Exception as e:
+        return f"⚠️ HATA OLUŞTU: {str(e)}"
 
 # 4. Teknik İndikatörler
 def calculate_rsi(data, period=14):
@@ -379,3 +379,4 @@ with tab_bilgi:
             st.write(tik.info.get('longBusinessSummary', ''))
         else: st.info("Şirket verisi yok.")
     except: st.write("Bilgi alınamadı.")
+
